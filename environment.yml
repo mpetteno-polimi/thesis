@@ -1,0 +1,10 @@
+name: resolv-pipelines
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python>=3.9,<3.12
+  - matplotlib>=3.8
+  - pip:
+      - git+ssh://git@github.com/resolv-libs/resolv-pipelines.git@main
+      - git+ssh://git@github.com/resolv-libs/resolv-ml.git@main

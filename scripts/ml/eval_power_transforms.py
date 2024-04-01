@@ -12,7 +12,7 @@ from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
 from scripts.utilities.constants import Paths
 
 DATASET_FOLDER = "4bars_melodies_distinct/lakh_midi-v1.0.0-clean/midi"
-DATASET_FILE_PATTERN = 'representation-*.tfrecord'
+DATASET_FILE_PATTERN = 'pitchseq/pitchseq-*.tfrecord'
 DATASET_PATH = str(Paths.REPRESENTATION_DATASETS_DIR / DATASET_FOLDER / DATASET_FILE_PATTERN)
 BATCH_SIZE = 64
 HIST_OUTPUT_PATH = Paths.REPRESENTATION_DATASETS_DIR / DATASET_FOLDER / 'power_transforms'
@@ -28,6 +28,7 @@ def load_dataset(attribute: str):
             attributes_to_parse=[attribute],
             parse_sequence_feature=False
         ),
+        map_fn=lambda x, y: x[attribute],
         batch_size=BATCH_SIZE,
         batch_drop_reminder=True,
         deterministic=True

@@ -73,7 +73,6 @@ if __name__ == '__main__':
         input_path_prefix="data",
         output_path_prefix="attributes",
         output_dataset_name="4bars_melodies_distinct",
-        distinct=True,
         force_overwrite=True,
         logging_level="INFO",
         debug=False,
@@ -81,7 +80,7 @@ if __name__ == '__main__':
         pipeline_options={
             "runner": "DirectRunner",
             "direct_running_mode": "multi_processing",
-            "direct_num_workers": 8,
+            "direct_num_workers": 6,
             "direct_runner_bundle_repeat": 0
         }
     ).run_pipeline()

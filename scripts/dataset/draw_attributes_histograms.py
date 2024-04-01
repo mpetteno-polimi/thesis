@@ -19,7 +19,7 @@ if __name__ == '__main__':
         pipeline_options={
             "runner": "DirectRunner",
             "direct_running_mode": "multi_processing",
-            "direct_num_workers": 8,
+            "direct_num_workers": 6,
             "direct_runner_bundle_repeat": 0
         }
     ).run_pipeline()

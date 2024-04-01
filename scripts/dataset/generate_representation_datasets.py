@@ -28,9 +28,9 @@ if __name__ == '__main__':
         canonical_format=NoteSequence,
         augmenters_config=augmenters_config(),
         allowed_augmenters_map=resolv_pipelines.SUPPORTED_NOTE_SEQ_AUGMENTERS,
-        source_dataset_names=["jsb-chorales-v1"],
-        source_dataset_modes=["full"],
-        source_dataset_file_types=["mxml"],
+        source_dataset_names=["lakh-midi-v1"],
+        source_dataset_modes=["clean"],
+        source_dataset_file_types=["midi"],
         input_path=Paths.GENERATED_DATASETS_DIR / "4bars_melodies_distinct",
         input_path_prefix="attributes",
         output_path=Paths.DATASETS_DIR,
@@ -43,7 +43,7 @@ if __name__ == '__main__':
         pipeline_options={
             "runner": "DirectRunner",
             "direct_running_mode": "multi_processing",
-            "direct_num_workers": 8,
+            "direct_num_workers": 6,
             "direct_runner_bundle_repeat": 0
         }
     ).run_pipeline()

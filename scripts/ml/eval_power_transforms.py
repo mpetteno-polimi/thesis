@@ -1,4 +1,5 @@
 import functools
+import logging
 import os
 from pathlib import Path
 from typing import Type, List
@@ -42,33 +43,52 @@ def eval_power_transforms(power_transform_classes: List[Type[PowerTransform]]) -
             self.name = self._pt_layer.name
 
         def call(self, inputs):
-            pt_out = self._pt_layer(inputs)
-            pt_out_mean = k_ops.mean(pt_out)
-            pt_out_std = k_ops.std(pt_out)
-            pt_out_norm = (pt_out - pt_out_mean) / pt_out_std
-            kl_div_batch = -0.5 * k_ops.sum((1 + k_ops.log(pt_out_std) - k_ops.square(pt_out_mean) - pt_out_std))
-            return pt_out_norm, kl_div_batch
+            return self._pt_layer(inputs)
 
-    lambds = k_ops.arange(LAMBDA_MIN, LAMBDA_MAX, LAMBDA_STEP)
+    lambda_range = k_ops.arange(LAMBDA_MIN, LAMBDA_MAX, LAMBDA_STEP)
     for field in NoteSequence.SequenceAttributes.DESCRIPTOR.fields:
         attribute = field.name
         for power_transform_class in power_transform_classes:
             power_transform_id = power_transform_class.__name__
             output_path = HIST_OUTPUT_PATH / power_transform_id.lower() / attribute
             output_path.mkdir(parents=True, exist_ok=True)
+            numpy_output_path = output_path / "numpy"
+            numpy_output_path.mkdir(parents=True, exist_ok=True)
             kl_divs = []
-            for lmbda in lambds:
-                dataset = _load_dataset(attribute)
+            for lmbda in lambda_range:
+                logging.info(f"Evaluating {power_transform_id} power transform with lambda {lmbda:.2f} for attribute "
+                             f"'{attribute}'...")
+                # Create PowerTransform model
                 pt_model = PowerTransformModel(power_transform_class, lmbda)
                 pt_model.trainable = False
                 pt_model.compile()
-                output, kl_div_batches = pt_model.predict(dataset)
-                kld = k_ops.mean(kl_div_batches)
-                _plot_distribution(output, output_path, power_transform_id, lmbda, kld, attribute)
-                kl_divs.append(kld)
-            # Save KLD and lambda values and plot KLD as a function of lambda
-            np.save(output_path / 'numpy_klds.npy', kl_divs)
-            _plot_kld_lambda_fn(lambds, kl_divs, output_path, power_transform_id, attribute)
+                # Load dataset and compute PowerTransform
+                dataset = _load_dataset(attribute)
+                pt_out = pt_model.predict(dataset)
+                pt_out_mean = k_ops.mean(pt_out)
+                pt_out_std = k_ops.std(pt_out)
+                # Compute KLD
+                logging.info(f"Computing Kullback–Leibler Divergence...")
+                kl_div = -0.5 * k_ops.sum((1 + k_ops.log(pt_out_std) - k_ops.square(pt_out_mean) - pt_out_std))
+                kl_divs.append(kl_div)
+                logging.info(f"Kullback–Leibler Divergence is {kl_div:.2f}.")
+                # Plot histogram of the output distribution
+                logging.info(f"Plotting output distribution histogram...")
+                pt_out_norm = (pt_out - pt_out_mean) / pt_out_std
+                _plot_distribution(pt_out_norm.numpy(), output_path, power_transform_id, lmbda, kl_div, attribute)
+                # Save output distribution
+                numpy_pt_out_filename = (f'pt_out_norm_{power_transform_id.lower()}_{attribute}'
+                                         f'_lambda_{lmbda:.2f}_kld_{kl_div:.2f}.npy')
+                logging.info(f"Saving output distribution to numpy file {numpy_pt_out_filename}....")
+                np.save(numpy_output_path / numpy_pt_out_filename, pt_out_norm)
+            # Plot KLD as a function of lambda
+            logging.info(f"Plotting KLD as a function of lambda...")
+            _plot_kld_lambda_fn(lambda_range, kl_divs, output_path, power_transform_id, attribute)
+            # Save KLD and lambda range
+            numpy_klds_filename = (f'klds_{power_transform_id.lower()}_{attribute}_'
+                                   f'lmin_{LAMBDA_MIN}_lmax_{LAMBDA_MAX}_lstep_{LAMBDA_STEP}.npy')
+            logging.info(f"Saving KLD and lambda range to numpy file {numpy_klds_filename}....")
+            np.save(numpy_output_path / numpy_klds_filename, [lambda_range, kl_divs])
 
 
 def _load_dataset(attribute: str):
@@ -91,10 +111,13 @@ def _load_dataset(attribute: str):
 
 
 def _plot_distribution(x, output_path: Path, power_transform_id: str, lmbda: float, kl_div: float, attribute: str):
+    histograms_output_path = output_path / "histograms"
+    histograms_output_path.mkdir(parents=True, exist_ok=True)
     pt_title = power_transform_id
     attr_title = attribute.replace("_", " ").capitalize()
     for bins in HISTOGRAM_BINS:
-        filename = f'{str(output_path)}/histogram_{lmbda:.2f}_{kl_div:.2f}_{bins}.png'
+        filename = (f'{str(histograms_output_path)}/histogram_{power_transform_id.lower()}_{attribute}_'
+                    f'lambda_{lmbda:.2f}_kld_{kl_div:.2f}_bins_{bins}.png')
         plt.hist(x, bins=bins, color='blue', alpha=0.7)
         plt.suptitle(f'{pt_title} - {attr_title}')
         plt.title(r'$\lambda$ = ' + f'{lmbda:.2f} - KLD = {kl_div:.2f} - Bins = {bins}')
@@ -106,7 +129,7 @@ def _plot_distribution(x, output_path: Path, power_transform_id: str, lmbda: flo
 def _plot_kld_lambda_fn(lambds, klds, output_path: Path, power_transform_id: str, attribute: str):
     pt_title = power_transform_id
     attr_title = attribute.replace("_", " ").capitalize()
-    filename = f'{str(output_path)}/kld_vs_lmbda_plot.png'
+    filename = f'{str(output_path)}/kld_vs_lmbda_plot_{power_transform_id.lower()}_{attribute}.png'
     plt.plot(lambds, klds)
     plt.title(f'{pt_title} - {attr_title}')
     plt.xlabel(r'$\lambda$')
@@ -118,4 +141,5 @@ def _plot_kld_lambda_fn(lambds, klds, output_path: Path, power_transform_id: str
 
 if __name__ == '__main__':
     os.environ["KERAS_BACKEND"] = "tensorflow"
+    logging.getLogger().setLevel(logging.INFO)
     eval_power_transforms([BoxCox, YeoJohnson])

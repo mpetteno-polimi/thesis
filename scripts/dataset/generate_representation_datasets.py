@@ -36,6 +36,7 @@ if __name__ == '__main__':
         output_path=Paths.DATASETS_DIR,
         output_path_prefix="pitchseq",
         output_dataset_name="4bars_melodies_distinct",
+        split_ratios={"train": 0.8, "validation": 0.15, "test": 0.05},
         force_overwrite=True,
         logging_level="INFO",
         debug=False,

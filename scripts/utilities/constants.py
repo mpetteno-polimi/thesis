@@ -39,29 +39,6 @@ class Paths:
     DATASET_METRICS_CONFIG_DIR = DATASET_CONFIG_DIR / 'metrics'
     DATASET_REPRESENTATION_CONFIG_DIR = DATASET_CONFIG_DIR / 'representation'
 
-
-class BEAMConfigSections:
-    """ Constants that indicate the sections in the configuration file that are relative to the BEAM pipelines. """
-
-    DIRECT_RUNNER = 'DirectRunner'
-    FLINK_RUNNER = 'FlinkRunner'
-    SPARK_RUNNER = 'SparkRunner'
-
-
-class IOConfigSections:
-    """ Constants that indicate the sections in the configuration file that are relative to I/O operations. """
-
-    S3_FILE_SYSTEM = 'S3FileSystem'
-
-
-class MLConfigSections:
-    """ Constants that indicate the sections in the configuration file that are relative to ML operations. """
-
-    REPRESENTATION = 'Representation'
-    DATASETS = 'Datasets'
-    MODEL = 'Model'
-    TRAINING = 'Training'
-    CHECKPOINTS = 'Checkpoints'
-    EARLY_STOPPING = 'EarlyStopping'
-    BACKUP = 'Backup'
-    TENSORBOARD = 'Tensorboard'
+    # ------------ MACHINE LEARNING -----------
+    ML_DIR = SCRIPTS_DIR / 'ml'
+    ML_CONFIG_DIR = ML_DIR / 'config'

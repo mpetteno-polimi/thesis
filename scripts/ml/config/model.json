@@ -1,0 +1,25 @@
+{
+  "z_size": 128,
+  "num_classes": 130,
+  "embedding_size": 70,
+  "encoder": {
+    "enc_rnn_sizes": [16, 16],
+    "dropout": 0.0
+  },
+  "hier_decoder":  {
+    "level_lengths": [4, 4, 4],
+    "dec_rnn_size": [16, 16],
+    "dropout": 0.0,
+    "core_decoder": {
+      "dec_rnn_size": [16, 16],
+      "dropout": 0.0,
+      "sampling_schedule": "sampling_schedule",
+      "sampling_rate": "sampling_rate"
+    }
+  },
+  "hparams": {
+    "max_beta": 1.0,
+    "beta_rate": 0.0,
+    "free_bits": 0.0
+  }
+}

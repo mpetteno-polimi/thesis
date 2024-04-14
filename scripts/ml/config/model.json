@@ -8,10 +8,10 @@
   },
   "hier_decoder":  {
     "level_lengths": [4, 4, 4],
-    "dec_rnn_size": [16, 16],
+    "dec_rnn_sizes": [16, 16],
     "dropout": 0.0,
     "core_decoder": {
-      "dec_rnn_size": [16, 16],
+      "dec_rnn_sizes": [16, 16],
       "dropout": 0.0,
       "sampling_schedule": "sampling_schedule",
       "sampling_rate": "sampling_rate"

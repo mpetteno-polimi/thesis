@@ -3,7 +3,7 @@ from resolv_mir import NoteSequence
 from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
 from resolv_pipelines.pipelines.datasets import RepresentationDatasetPipeline
 
-from scripts.utilities.constants import Paths
+from scripts.dataset.utilities import Paths
 
 
 def augmenters_config():

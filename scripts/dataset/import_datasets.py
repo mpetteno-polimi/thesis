@@ -1,6 +1,6 @@
 from resolv_pipelines.pipelines.datasets import ImportArchiveDatasetPipeline, CanonicalizeDatasetPipeline
 
-from scripts.utilities.constants import Paths
+from scripts.dataset.utilities import Paths
 
 
 if __name__ == '__main__':

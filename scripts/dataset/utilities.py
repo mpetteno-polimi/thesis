@@ -38,7 +38,3 @@ class Paths:
     DATASET_GENERATOR_CONFIG_DIR = DATASET_CONFIG_DIR / 'generator'
     DATASET_METRICS_CONFIG_DIR = DATASET_CONFIG_DIR / 'metrics'
     DATASET_REPRESENTATION_CONFIG_DIR = DATASET_CONFIG_DIR / 'representation'
-
-    # ------------ MACHINE LEARNING -----------
-    ML_DIR = SCRIPTS_DIR / 'ml'
-    ML_CONFIG_DIR = ML_DIR / 'config'

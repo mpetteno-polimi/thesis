@@ -2,7 +2,7 @@ import resolv_pipelines.pipelines as resolv_pipelines
 from resolv_mir import note_sequence, NoteSequence
 from resolv_pipelines.pipelines.datasets import ProcessDatasetPipeline
 
-from scripts.utilities.constants import Paths
+from scripts.dataset.utilities import Paths
 
 
 def processors_config():

@@ -1,6 +1,7 @@
 import argparse
 import functools
 import json
+from pathlib import Path
 
 import keras
 import tensorflow as tf
@@ -11,11 +12,9 @@ from resolv_ml.training.trainer import Trainer
 from resolv_pipelines.data.loaders import TFRecordLoader
 from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
 
-from scripts.utilities.constants import Paths
 
-
-def get_hierarchical_model(attribute_reg_layer: AttributeRegularizationLayer):
-    model_config_path = Paths.ML_CONFIG_DIR / "model.json"
+def get_hierarchical_model(model_config_path: Path,
+                           attribute_reg_layer: AttributeRegularizationLayer) -> AttributeRegularizedVAE:
     with open(model_config_path) as file:
         model_config = json.load(file)
 
@@ -62,14 +61,26 @@ def get_hierarchical_model(attribute_reg_layer: AttributeRegularizationLayer):
     return model
 
 
-def load_datasets(train_dataset_path: str, val_dataset_path: int, attribute: str):
-    train_data, input_shape = load_pitch_seq_dataset(dataset_path=train_dataset_path, attribute=attribute)
-    val_data, _ = load_pitch_seq_dataset(dataset_path=val_dataset_path, attribute=attribute)
+def load_datasets(dataset_config_path: Path,
+                  trainer_config_path: Path,
+                  train_dataset_path: str,
+                  val_dataset_path: int,
+                  attribute: str):
+    train_data, input_shape = load_pitch_seq_dataset(dataset_config_path=dataset_config_path,
+                                                     trainer_config_path=trainer_config_path,
+                                                     dataset_path=train_dataset_path,
+                                                     attribute=attribute)
+    val_data, _ = load_pitch_seq_dataset(dataset_config_path=dataset_config_path,
+                                         trainer_config_path=trainer_config_path,
+                                         dataset_path=val_dataset_path,
+                                         attribute=attribute)
     return train_data, val_data, input_shape
 
 
-def load_pitch_seq_dataset(dataset_path: str, attribute: str) -> tf.data.TFRecordDataset:
-
+def load_pitch_seq_dataset(dataset_config_path: Path,
+                           trainer_config_path: Path,
+                           dataset_path: str,
+                           attribute: str) -> tf.data.TFRecordDataset:
     def get_input_shape():
         input_seq_shape = batch_size, dataset_config["sequence_length"], dataset_config["sequence_features"]
         aux_input_shape = (batch_size,)
@@ -81,11 +92,9 @@ def load_pitch_seq_dataset(dataset_path: str, attribute: str) -> tf.data.TFRecor
         target = input_seq
         return (input_seq, attributes), target
 
-    dataset_config_path = Paths.ML_CONFIG_DIR / "dataset.json"
     with open(dataset_config_path) as file:
         dataset_config = json.load(file)
 
-    trainer_config_path = Paths.ML_CONFIG_DIR / "trainer.json"
     with open(trainer_config_path) as file:
         trainer_config = json.load(file)
 
@@ -116,8 +125,7 @@ def load_pitch_seq_dataset(dataset_path: str, attribute: str) -> tf.data.TFRecor
     return tfrecord_loader.load_dataset(), get_input_shape()
 
 
-def get_trainer(model: keras.Model) -> Trainer:
-    trainer_config_path = Paths.ML_CONFIG_DIR / "trainer.json"
+def get_trainer(trainer_config_path: Path, model: keras.Model) -> Trainer:
     trainer = Trainer(model, config_file_path=trainer_config_path)
     trainer.compile(
         loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -128,6 +136,9 @@ def get_trainer(model: keras.Model) -> Trainer:
 
 def get_arg_parser(description: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('--model-config-path', help='Path to the model\'s configuration file.', required=True)
+    parser.add_argument('--trainer-config-path', help='Path to the trainer\'s configuration file.', required=True)
+    parser.add_argument('--dataset-config-path', help='Path to the dataset\'s configuration file.', required=True)
     parser.add_argument('--train-dataset-path', help='Path to training dataset.', required=True)
     parser.add_argument('--val-dataset-path', help='Path to validation dataset.', required=True)
     parser.add_argument('--attribute', help='Attribute to regularize.', required=True)

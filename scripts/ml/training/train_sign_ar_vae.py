@@ -1,4 +1,17 @@
 """
+Usage example:
+
+    python ./scripts/ml/training/train_sign_ar_vae.py \
+        --model-config-path=./scripts/ml/training/config/model.json \
+        --trainer-config-path=./scripts/ml/training/config/trainer.json \
+        --dataset-config-path=./scripts/ml/training/config/dataset.json \
+        --train-dataset-path=./4bars_melodies/train/*.tfrecord \
+        --val-dataset-path=./4bars_melodies/validation/*.tfrecord \
+        --attribute="contour" \
+        --reg-dim=0 \
+        --gamma=1.0 \
+        --scale-factor=1.0 \
+        --gpus=0
 
 """
 import logging

@@ -93,25 +93,21 @@ def get_hierarchical_model(model_config_path: Path,
     return model
 
 
-def load_datasets(dataset_config_path: Path,
-                  trainer_config_path: Path,
-                  train_dataset_path: str,
-                  val_dataset_path: int,
+def load_datasets(train_dataset_config_path: str,
+                  val_dataset_config_path: str,
+                  trainer_config_path: str,
                   attribute: str):
-    train_data, input_shape = load_pitch_seq_dataset(dataset_config_path=dataset_config_path,
+    train_data, input_shape = load_pitch_seq_dataset(dataset_config_path=train_dataset_config_path,
                                                      trainer_config_path=trainer_config_path,
-                                                     dataset_path=train_dataset_path,
                                                      attribute=attribute)
-    val_data, _ = load_pitch_seq_dataset(dataset_config_path=dataset_config_path,
+    val_data, _ = load_pitch_seq_dataset(dataset_config_path=val_dataset_config_path,
                                          trainer_config_path=trainer_config_path,
-                                         dataset_path=val_dataset_path,
                                          attribute=attribute)
     return train_data, val_data, input_shape
 
 
-def load_pitch_seq_dataset(dataset_config_path: Path,
-                           trainer_config_path: Path,
-                           dataset_path: str,
+def load_pitch_seq_dataset(dataset_config_path: str,
+                           trainer_config_path: str,
                            attribute: str) -> tf.data.TFRecordDataset:
     def get_input_shape():
         input_seq_shape = batch_size, dataset_config["sequence_length"], dataset_config["sequence_features"]
@@ -133,7 +129,7 @@ def load_pitch_seq_dataset(dataset_config_path: Path,
     batch_size = trainer_config["fit"]["batch_size"]
     representation = PitchSequenceRepresentation(sequence_length=dataset_config["sequence_length"])
     tfrecord_loader = TFRecordLoader(
-        file_pattern=dataset_path,
+        file_pattern=dataset_config["dataset_path"],
         parse_fn=functools.partial(
             representation.parse_example,
             parse_sequence_feature=True,
@@ -170,9 +166,10 @@ def get_arg_parser(description: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--model-config-path', help='Path to the model\'s configuration file.', required=True)
     parser.add_argument('--trainer-config-path', help='Path to the trainer\'s configuration file.', required=True)
-    parser.add_argument('--dataset-config-path', help='Path to the dataset\'s configuration file.', required=True)
-    parser.add_argument('--train-dataset-path', help='Path to training dataset.', required=True)
-    parser.add_argument('--val-dataset-path', help='Path to validation dataset.', required=True)
+    parser.add_argument('--train-dataset-config-path', help='Path to the train dataset\'s configuration file.',
+                        required=True)
+    parser.add_argument('--val-dataset-config-path', help='Path to the validation dataset\'s configuration file.',
+                        required=True)
     parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
     parser.add_argument('--reg-dim', help='Latent code regularization dimension.', default=0, type=int)
     parser.add_argument('--gamma', help='Gamma factor to scale regularization loss.', default=1.0, type=float)

@@ -4,9 +4,8 @@ Usage example:
     python ./scripts/ml/training/train_sign_ar_vae.py \
         --model-config-path=./scripts/ml/training/config/model.json \
         --trainer-config-path=./scripts/ml/training/config/trainer.json \
-        --dataset-config-path=./scripts/ml/training/config/dataset.json \
-        --train-dataset-path=./4bars_melodies/train/*.tfrecord \
-        --val-dataset-path=./4bars_melodies/validation/*.tfrecord \
+        --train-dataset-config-path=./scripts/ml/training/config/train_dataset.json \
+        --val-dataset-config-path=./scripts/ml/training/config/val_dataset.json \
         --attribute="contour" \
         --reg-dim=0 \
         --gamma=1.0 \
@@ -32,13 +31,11 @@ if __name__ == '__main__':
     strategy = utilities.get_distributed_strategy(args.gpus)
     with strategy.scope():
         train_data, val_data, input_shape = utilities.load_datasets(
-            dataset_config_path=args.dataset_config_path,
+            train_dataset_config_path=args.train_dataset_config_path,
+            val_dataset_config_path=args.val_dataset_config_path,
             trainer_config_path=args.trainer_config_path,
-            train_dataset_path=args.train_dataset_path,
-            val_dataset_path=args.val_dataset_path,
             attribute=args.attribute
         )
-
         vae = utilities.get_hierarchical_model(
             model_config_path=args.model_config_path,
             attribute_reg_layer=SignAttributeRegularization(
@@ -49,6 +46,5 @@ if __name__ == '__main__':
             )
         )
         vae.build(input_shape)
-
         trainer = utilities.get_trainer(model=vae, trainer_config_path=args.trainer_config_path)
         history = trainer.train(train_data=train_data, validation_data=val_data)

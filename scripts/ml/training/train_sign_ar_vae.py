@@ -16,7 +16,7 @@ Usage example:
 """
 import logging
 
-import keras.losses
+import keras
 from resolv_ml.models.dlvm.vae.ar_vae import SignAttributeRegularization
 
 from scripts.ml.training import utilities

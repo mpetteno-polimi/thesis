@@ -1,7 +1,9 @@
 import argparse
 import functools
 import json
+import logging
 from pathlib import Path
+from typing import List
 
 import keras
 import tensorflow as tf
@@ -11,6 +13,36 @@ from resolv_ml.models.seq2seq.rnn.encoders import BidirectionalRNNEncoder
 from resolv_ml.training.trainer import Trainer
 from resolv_pipelines.data.loaders import TFRecordLoader
 from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
+
+
+def check_tf_gpu_availability():
+    gpu_list = tf.config.list_physical_devices('GPU')
+    if len(gpu_list) > 0:
+        logging.info(f'Num GPUs Available: {len(gpu_list)}. List: {gpu_list}')
+    return gpu_list
+
+
+def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strategy:
+    gpu_list = check_tf_gpu_availability()
+
+    if not gpu_list:
+        raise SystemExit("GPU not available.")
+
+    if gpu_ids and any(gpu_id >= len(gpu_list) for gpu_id in gpu_ids):
+        raise ValueError(f"GPU ids {gpu_ids} not valid. There are only {len(gpu_ids)} GPUs available.")
+
+    if gpu_ids:
+        selected_gpus = [gpu_list[gpu] for gpu in gpu_ids]
+    else:
+        logging.info(f"No GPU ids provided. Using default GPU device {gpu_list[0]}.")
+        selected_gpus = [gpu_list[0]]
+    selected_gpus_name = [selected_gpu.name.replace("/physical_device:", "") for selected_gpu in selected_gpus]
+
+    if len(selected_gpus) > 1:
+        strategy = tf.distribute.MirroredStrategy(devices=selected_gpus_name)
+    else:
+        strategy = tf.distribute.OneDeviceStrategy(device=selected_gpus_name[0])
+    return strategy
 
 
 def get_hierarchical_model(model_config_path: Path,
@@ -144,4 +176,8 @@ def get_arg_parser(description: str) -> argparse.ArgumentParser:
     parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
     parser.add_argument('--reg-dim', help='Latent code regularization dimension.', default=0, type=int)
     parser.add_argument('--gamma', help='Gamma factor to scale regularization loss.', default=1.0, type=float)
+    parser.add_argument('--gpus', nargs="+", help='ID of GPUs to use for training.', required=False,
+                        default=[], type=int)
+    parser.add_argument('--logging-level', help='Set the logging level.', default="INFO", required=False,
+                        choices=["CRITICAL", "ERROR", "WARNING", "INFO"])
     return parser

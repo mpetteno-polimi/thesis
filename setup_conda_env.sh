@@ -8,3 +8,4 @@ conda env remove --prefix $CONDA_PREFIX
 
 # Create new environment
 conda env create --prefix $CONDA_PREFIX --file environment.yml
+conda env update --prefix $CONDA_PREFIX --file environment.local.yml

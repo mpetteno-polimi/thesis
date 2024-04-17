@@ -1,10 +1,11 @@
-name: resolv-pipelines
+name: thesis
 channels:
   - defaults
   - conda-forge
 dependencies:
   - python>=3.9,<3.12
+  - pip
   - matplotlib>=3.8
   - pip:
-      - git+ssh://git@github.com/resolv-libs/resolv-pipelines.git@main
+      - resolv-pipelines[tensorflow] @ git+ssh://git@github.com/resolv-libs/resolv-pipelines.git@main
       - git+ssh://git@github.com/resolv-libs/resolv-ml.git@main

@@ -30,6 +30,7 @@ def eval_power_transforms(args) -> List[float]:
         def call(self, inputs):
             return self._pt_layer(inputs)
 
+    logging.getLogger().setLevel(args.logging_level)
     lambda_range = k_ops.arange(args.lambda_min, args.lambda_max, args.lambda_step)
     for attribute in args.attributes:
         for power_transform_id in args.power_transform_ids:
@@ -160,5 +161,4 @@ if __name__ == '__main__':
     parser.add_argument('--logging-level', help='Set the logging level.', default="INFO", required=False,
                         choices=["CRITICAL", "ERROR", "WARNING", "INFO"])
     os.environ["KERAS_BACKEND"] = "tensorflow"
-    logging.getLogger().setLevel(logging.INFO)
     eval_power_transforms(parser.parse_args())

@@ -2,6 +2,6 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - pi
+  - pip
   - pip:
       - tensorflow-metal>=1.1.0

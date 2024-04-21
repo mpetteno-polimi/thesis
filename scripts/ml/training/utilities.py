@@ -36,8 +36,11 @@ def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strateg
     else:
         logging.info(f"No GPU ids provided. Using default GPU device {gpu_list[0]}.")
         selected_gpus = [gpu_list[0]]
-    selected_gpus_name = [selected_gpu.name.replace("/physical_device:", "") for selected_gpu in selected_gpus]
 
+    for gpu in selected_gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+
+    selected_gpus_name = [selected_gpu.name.replace("/physical_device:", "") for selected_gpu in selected_gpus]
     if len(selected_gpus) > 1:
         strategy = tf.distribute.MirroredStrategy(devices=selected_gpus_name)
     else:
@@ -157,7 +160,12 @@ def get_trainer(trainer_config_path: Path, model: keras.Model) -> Trainer:
     trainer = Trainer(model, config_file_path=trainer_config_path)
     trainer.compile(
         loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        metrics=[keras.metrics.SparseCategoricalAccuracy(), keras.metrics.SparseTopKCategoricalAccuracy()]
+        metrics=[keras.metrics.SparseCategoricalCrossentropy(from_logits=True),
+                 keras.metrics.SparseCategoricalAccuracy(),
+                 keras.metrics.SparseTopKCategoricalAccuracy()],
+        lr_schedule=keras.optimizers.schedules.ExponentialDecay(
+            **trainer.config["compile"]["optimizer"]["learning_rate"]
+        )
     )
     return trainer
 

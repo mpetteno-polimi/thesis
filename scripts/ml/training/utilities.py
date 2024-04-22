@@ -70,6 +70,8 @@ def get_hierarchical_model(model_config_path: Path,
         level_lengths=hier_decoder_config["level_lengths"],
         dec_rnn_sizes=hier_decoder_config["dec_rnn_sizes"],
         dropout=hier_decoder_config["dropout"],
+        sampling_schedule=core_decoder_config["sampling_schedule"],
+        sampling_rate=core_decoder_config["sampling_rate"],
         core_decoder=RNNAutoregressiveDecoder(
             dec_rnn_sizes=core_decoder_config["dec_rnn_sizes"],
             num_classes=model_config["num_classes"],
@@ -78,9 +80,7 @@ def get_hierarchical_model(model_config_path: Path,
                 output_dim=model_config["embedding_size"],
                 name="decoder_embedding"
             ),
-            dropout=core_decoder_config["dropout"],
-            sampling_schedule=core_decoder_config["sampling_schedule"],
-            sampling_rate=core_decoder_config["sampling_rate"]
+            dropout=core_decoder_config["dropout"]
         )
     )
 

@@ -7,6 +7,8 @@ from typing import List
 
 import keras
 import tensorflow as tf
+from resolv_ml.models.dlvm.vae.base import VAE
+from resolv_ml.models.dlvm.vae.vanilla_vae import StandardVAE
 from resolv_ml.models.dlvm.vae.ar_vae import AttributeRegularizedVAE, AttributeRegularizationLayer
 from resolv_ml.models.seq2seq.rnn.decoders import HierarchicalRNNDecoder, RNNAutoregressiveDecoder
 from resolv_ml.models.seq2seq.rnn.encoders import BidirectionalRNNEncoder
@@ -49,7 +51,7 @@ def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strateg
 
 
 def get_hierarchical_model(model_config_path: Path,
-                           attribute_reg_layer: AttributeRegularizationLayer) -> AttributeRegularizedVAE:
+                           attribute_reg_layer: AttributeRegularizationLayer = None) -> VAE:
     with open(model_config_path) as file:
         model_config = json.load(file)
 
@@ -84,42 +86,51 @@ def get_hierarchical_model(model_config_path: Path,
         )
     )
 
-    model = AttributeRegularizedVAE(
-        z_size=model_config["z_size"],
-        input_processing_layer=encoder,
-        generative_layer=decoder,
-        attribute_regularization_layer=attribute_reg_layer,
-        max_beta=model_config["hparams"]["max_beta"],
-        beta_rate=model_config["hparams"]["beta_rate"],
-        free_bits=model_config["hparams"]["free_bits"]
-    )
-    return model
+    if attribute_reg_layer:
+        return AttributeRegularizedVAE(
+            z_size=model_config["z_size"],
+            input_processing_layer=encoder,
+            generative_layer=decoder,
+            attribute_regularization_layer=attribute_reg_layer,
+            max_beta=model_config["hparams"]["max_beta"],
+            beta_rate=model_config["hparams"]["beta_rate"],
+            free_bits=model_config["hparams"]["free_bits"]
+        )
+    else:
+        return StandardVAE(
+            z_size=model_config["z_size"],
+            input_processing_layer=encoder,
+            generative_layer=decoder,
+            max_beta=model_config["hparams"]["max_beta"],
+            beta_rate=model_config["hparams"]["beta_rate"],
+            free_bits=model_config["hparams"]["free_bits"]
+        )
 
 
 def load_datasets(train_dataset_config_path: str,
                   val_dataset_config_path: str,
                   trainer_config_path: str,
-                  attribute: str):
-    train_data, input_shape = load_pitch_seq_dataset(dataset_config_path=train_dataset_config_path,
+                  attribute: str = None):
+    train_data, input_shape, train_length = load_pitch_seq_dataset(dataset_config_path=train_dataset_config_path,
+                                                                   trainer_config_path=trainer_config_path,
+                                                                   attribute=attribute)
+    val_data, _, val_length = load_pitch_seq_dataset(dataset_config_path=val_dataset_config_path,
                                                      trainer_config_path=trainer_config_path,
                                                      attribute=attribute)
-    val_data, _ = load_pitch_seq_dataset(dataset_config_path=val_dataset_config_path,
-                                         trainer_config_path=trainer_config_path,
-                                         attribute=attribute)
-    return train_data, val_data, input_shape
+    return (train_data, train_length), (val_data, val_length), input_shape
 
 
 def load_pitch_seq_dataset(dataset_config_path: str,
                            trainer_config_path: str,
-                           attribute: str) -> tf.data.TFRecordDataset:
+                           attribute: str = None) -> tf.data.TFRecordDataset:
     def get_input_shape():
-        input_seq_shape = batch_size, dataset_config["sequence_length"], dataset_config["sequence_features"]
+        input_seq_shape = batch_size, sequence_length, sequence_features
         aux_input_shape = (batch_size,)
         return input_seq_shape, aux_input_shape
 
     def map_fn(ctx, seq):
         input_seq = tf.transpose(seq["pitch_seq"])
-        attributes = ctx[attribute]
+        attributes = ctx[attribute] if attribute else tf.zeros([batch_size])
         target = input_seq
         return (input_seq, attributes), target
 
@@ -129,31 +140,24 @@ def load_pitch_seq_dataset(dataset_config_path: str,
     with open(trainer_config_path) as file:
         trainer_config = json.load(file)
 
+    dataset_cardinality = dataset_config.pop("dataset_cardinality")
     batch_size = trainer_config["fit"]["batch_size"]
-    representation = PitchSequenceRepresentation(sequence_length=dataset_config["sequence_length"])
+    sequence_length = dataset_config.pop("sequence_length")
+    sequence_features = dataset_config.pop("sequence_features")
+    representation = PitchSequenceRepresentation(sequence_length=sequence_length)
     tfrecord_loader = TFRecordLoader(
-        file_pattern=dataset_config["dataset_path"],
+        file_pattern=dataset_config.pop("dataset_path"),
         parse_fn=functools.partial(
             representation.parse_example,
             parse_sequence_feature=True,
-            attributes_to_parse=[attribute]
+            attributes_to_parse=[attribute] if attribute else None
         ),
         map_fn=map_fn,
         batch_size=batch_size,
-        batch_drop_reminder=True,
-        shuffle=dataset_config["shuffle"],
-        shuffle_buffer_size=dataset_config["shuffle_buffer_size"],
-        shuffle_repeat=dataset_config["shuffle_repeat"],
-        cache_dataset=dataset_config["cache_dataset"],
-        cache_filename=dataset_config["cache_filename"],
-        prefetch_buffer_size=dataset_config["prefetch_buffer_size"],
-        interleave_cycle_length=dataset_config["interleave_cycle_length"],
-        interleave_block_length=dataset_config["interleave_block_length"],
-        num_parallel_calls=dataset_config["num_parallel_calls"],
-        deterministic=dataset_config["deterministic"],
-        seed=dataset_config["seed"]
+        repeat_count=trainer_config["fit"]["epochs"],
+        **dataset_config
     )
-    return tfrecord_loader.load_dataset(), get_input_shape()
+    return tfrecord_loader.load_dataset(), get_input_shape(), dataset_cardinality
 
 
 def get_trainer(trainer_config_path: Path, model: keras.Model) -> Trainer:
@@ -178,9 +182,6 @@ def get_arg_parser(description: str) -> argparse.ArgumentParser:
                         required=True)
     parser.add_argument('--val-dataset-config-path', help='Path to the validation dataset\'s configuration file.',
                         required=True)
-    parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
-    parser.add_argument('--reg-dim', help='Latent code regularization dimension.', default=0, type=int)
-    parser.add_argument('--gamma', help='Gamma factor to scale regularization loss.', default=1.0, type=float)
     parser.add_argument('--gpus', nargs="+", help='ID of GPUs to use for training.', required=False,
                         default=[], type=int)
     parser.add_argument('--logging-level', help='Set the logging level.', default="INFO", required=False,

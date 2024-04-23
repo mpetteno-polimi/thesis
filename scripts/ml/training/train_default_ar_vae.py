@@ -16,12 +16,16 @@ import logging
 
 import keras
 from resolv_ml.models.dlvm.vae.ar_vae import DefaultAttributeRegularization
+from resolv_ml.training.callbacks import LearningRateLoggerCallback
 
 from scripts.ml.training import utilities
 
 
 if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train AR-VAE model with default attribute regularization.")
+    arg_parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
+    arg_parser.add_argument('--reg-dim', help='Latent code regularization dimension.', default=0, type=int)
+    arg_parser.add_argument('--gamma', help='Gamma factor to scale regularization loss.', default=1.0, type=float)
     args = arg_parser.parse_args()
 
     logging.getLogger().setLevel(args.logging_level)
@@ -45,4 +49,10 @@ if __name__ == '__main__':
         )
         vae.build(input_shape)
         trainer = utilities.get_trainer(model=vae, trainer_config_path=args.trainer_config_path)
-        history = trainer.train(train_data=train_data, validation_data=val_data)
+        history = trainer.train(
+            train_data=train_data[0],
+            train_data_cardinality=train_data[1],
+            validation_data=val_data[0],
+            validation_data_cardinality=val_data[1],
+            custom_callbacks=[LearningRateLoggerCallback()]
+        )

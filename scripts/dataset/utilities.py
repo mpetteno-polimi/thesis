@@ -23,8 +23,8 @@ class Paths:
     SCRIPTS_DIR = ROOT_DIR / 'scripts'
 
     # ----------- RESOURCES -----------
-    RESOURCES_DIR = ROOT_DIR / 'resources'
-    DATASETS_DIR = RESOURCES_DIR / 'datasets'
+    OUTPUT_DIR = ROOT_DIR / 'output'
+    DATASETS_DIR = OUTPUT_DIR / 'datasets'
     RAW_DATASETS_DIR = DATASETS_DIR / 'raw'
     CANONICAL_DATASETS_DIR = DATASETS_DIR / 'canonical'
     GENERATED_DATASETS_DIR = DATASETS_DIR / 'generated'

@@ -155,6 +155,7 @@ def load_pitch_seq_dataset(dataset_config_path: str,
         map_fn=map_fn,
         batch_size=batch_size,
         repeat_count=trainer_config["fit"]["epochs"],
+        shuffle_buffer_size=dataset_config.pop("shuffle_buffer_size") or dataset_cardinality,
         **dataset_config
     )
     return tfrecord_loader.load_dataset(), get_input_shape(), dataset_cardinality

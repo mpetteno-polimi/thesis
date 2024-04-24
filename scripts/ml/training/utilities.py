@@ -39,8 +39,9 @@ def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strateg
         logging.info(f"No GPU ids provided. Using default GPU device {gpu_list[0]}.")
         selected_gpus = [gpu_list[0]]
 
-    for gpu in selected_gpus:
-        tf.config.experimental.set_memory_growth(gpu, True)
+    if len(gpu_list) == len(selected_gpus):
+        for gpu in selected_gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
 
     selected_gpus_name = [selected_gpu.name.replace("/physical_device:", "") for selected_gpu in selected_gpus]
     if len(selected_gpus) > 1:

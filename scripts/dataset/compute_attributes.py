@@ -65,14 +65,14 @@ if __name__ == '__main__':
         canonical_format=NoteSequence,
         allowed_processors_map=resolv_pipelines.SUPPORTED_NOTE_SEQ_ATTRIBUTES,
         processors_config=attributes_config(),
-        input_path=Paths.GENERATED_DATASETS_DIR / "4bars_melodies_distinct",
+        input_path=Paths.GENERATED_DATASETS_DIR / "4bars_melodies",
         output_path=Paths.DATASETS_DIR,
         source_dataset_names=["lakh-midi-v1"],
-        source_dataset_modes=["clean"],
+        source_dataset_modes=["full"],
         source_dataset_file_types=["midi"],
         input_path_prefix="data",
         output_path_prefix="attributes",
-        output_dataset_name="4bars_melodies_distinct",
+        output_dataset_name="4bars_melodies",
         force_overwrite=True,
         logging_level="INFO",
         debug=False,
@@ -80,7 +80,6 @@ if __name__ == '__main__':
         pipeline_options={
             "runner": "DirectRunner",
             "direct_running_mode": "multi_processing",
-            "direct_num_workers": 6,
-            "direct_runner_bundle_repeat": 0
+            "direct_num_workers": 8
         }
     ).run_pipeline()

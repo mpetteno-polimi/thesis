@@ -29,25 +29,26 @@ if __name__ == '__main__':
         augmenters_config=augmenters_config(),
         allowed_augmenters_map=resolv_pipelines.SUPPORTED_NOTE_SEQ_AUGMENTERS,
         source_dataset_names=["lakh-midi-v1"],
-        source_dataset_modes=["clean"],
+        source_dataset_modes=["full"],
         source_dataset_file_types=["midi"],
-        input_path=Paths.GENERATED_DATASETS_DIR / "4bars_melodies_distinct",
+        input_path=Paths.GENERATED_DATASETS_DIR / "4bars_melodies",
         input_path_prefix="attributes",
         output_path=Paths.DATASETS_DIR,
         output_path_prefix="pitchseq",
         output_dataset_name="4bars_melodies_distinct",
         split_config={
             "train": {
-                "ratio": 0.8,
+                "ratio": 0.9,
                 "augment": True
             },
             "validation": {
-                "ratio": 0.15
+                "ratio": 0.075
             },
             "test": {
-                "ratio": 0.05
+                "ratio": 0.0025
             }
         },
+        distinct=True,
         force_overwrite=True,
         logging_level="INFO",
         debug=False,
@@ -55,7 +56,6 @@ if __name__ == '__main__':
         pipeline_options={
             "runner": "DirectRunner",
             "direct_running_mode": "multi_processing",
-            "direct_num_workers": 6,
-            "direct_runner_bundle_repeat": 0
+            "direct_num_workers": 8
         }
     ).run_pipeline()

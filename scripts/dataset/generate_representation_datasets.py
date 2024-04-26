@@ -10,7 +10,7 @@ def augmenters_config():
     return {
         "transposer": {
             "order": 1,
-            "threshold": 0.7,
+            "threshold": 0.5,
             "min_transpose_amount": -12,
             "max_transpose_amount": 12,
             "max_allowed_pitch": 108,
@@ -38,14 +38,14 @@ if __name__ == '__main__':
         output_dataset_name="4bars_melodies_distinct",
         split_config={
             "train": {
-                "ratio": 0.9,
+                "ratio": 0.95,
                 "augment": True
             },
             "validation": {
-                "ratio": 0.075
+                "ratio": 0.0485
             },
             "test": {
-                "ratio": 0.0025
+                "ratio": 0.0015
             }
         },
         distinct=True,

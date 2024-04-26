@@ -38,11 +38,11 @@ if __name__ == '__main__':
         output_dataset_name="4bars_melodies_distinct",
         split_config={
             "train": {
-                "ratio": 0.95,
+                "ratio": 0.90,
                 "augment": True
             },
             "validation": {
-                "ratio": 0.0485
+                "ratio": 0.0985
             },
             "test": {
                 "ratio": 0.0015

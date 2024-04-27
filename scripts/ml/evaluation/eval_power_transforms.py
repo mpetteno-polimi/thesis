@@ -6,15 +6,15 @@ from pathlib import Path
 from typing import List
 
 import keras
-import keras.ops as k_ops
 import matplotlib.pyplot as plt
 import numpy as np
+from keras import ops as k_ops
 from resolv_ml.utilities.distributions.power_transforms import BoxCox, YeoJohnson
 from resolv_pipelines.data.loaders import TFRecordLoader
 from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
 
 
-def eval_power_transforms(args) -> List[float]:
+def eval_power_transforms(args):
     class PowerTransformModel(keras.Model):
 
         def __init__(self, pt_id: str, lambd: int):
@@ -30,15 +30,18 @@ def eval_power_transforms(args) -> List[float]:
         def call(self, inputs):
             return self._pt_layer(inputs)
 
-    logging.getLogger().setLevel(args.logging_level)
-    lambda_range = k_ops.arange(args.lambda_min, args.lambda_max, args.lambda_step)
     for attribute in args.attributes:
-        for power_transform_id in args.power_transform_ids:
-            output_path = Path(args.histogram_output_path) / power_transform_id.lower() / attribute
+        for idx, power_transform_id in enumerate(args.power_transform_ids):
+            output_path = Path(args.histogram_output_path) / "power-transforms" / power_transform_id.lower() / attribute
             output_path.mkdir(parents=True, exist_ok=True)
             numpy_output_path = output_path / "numpy"
             numpy_output_path.mkdir(parents=True, exist_ok=True)
             kl_divs = []
+            # Compute lambda range
+            lambda_min = args.lambda_min[idx] if len(args.lambda_min) > 1 else args.lambda_min[0]
+            lambda_max = args.lambda_max[idx] if len(args.lambda_max) > 1 else args.lambda_max[0]
+            lambda_step = args.lambda_step[idx] if len(args.lambda_step) > 1 else args.lambda_step[0]
+            lambda_range = k_ops.arange(lambda_min, lambda_max, lambda_step)
             for lmbda in lambda_range:
                 logging.info(f"Evaluating {power_transform_id} power transform with lambda {lmbda:.2f} for attribute "
                              f"'{attribute}'...")
@@ -46,8 +49,12 @@ def eval_power_transforms(args) -> List[float]:
                 pt_model = PowerTransformModel(power_transform_id, lmbda)
                 pt_model.trainable = False
                 pt_model.compile()
-                # Load dataset and compute PowerTransform
-                dataset = _load_dataset(dataset_path=args.dataset_path, attribute=attribute, batch_size=args.batch_size)
+                # Load dataset
+                dataset = load_dataset(dataset_path=args.dataset_path,
+                                       sequence_length=args.sequence_length,
+                                       attribute=attribute,
+                                       batch_size=args.batch_size)
+                # Compute PowerTransform
                 pt_out = pt_model.predict(dataset)
                 pt_out_mean = k_ops.mean(pt_out)
                 pt_out_std = k_ops.std(pt_out)
@@ -59,7 +66,7 @@ def eval_power_transforms(args) -> List[float]:
                 # Plot histogram of the output distribution
                 logging.info(f"Plotting output distribution histogram...")
                 pt_out_norm = (pt_out - pt_out_mean) / pt_out_std
-                _plot_distribution(
+                plot_pt_distribution(
                     data=pt_out_norm.numpy(),
                     output_path=output_path,
                     power_transform_id=power_transform_id,
@@ -75,16 +82,30 @@ def eval_power_transforms(args) -> List[float]:
                 np.save(numpy_output_path / numpy_pt_out_filename, pt_out_norm)
             # Plot KLD as a function of lambda
             logging.info(f"Plotting KLD as a function of lambda...")
-            _plot_kld_lambda_fn(lambda_range, kl_divs, output_path, power_transform_id, attribute)
+            plot_kld_lambda_fn(lambda_range, kl_divs, output_path, power_transform_id, attribute)
             # Save KLD and lambda range
             numpy_klds_filename = (f'klds_{power_transform_id.lower()}_{attribute}_'
-                                   f'lmin_{args.lambda_min}_lmax_{args.lambda_max}_lstep_{args.lambda_step}.npy')
+                                   f'lmin_{lambda_min}_lmax_{lambda_max}_lstep_{lambda_step}.npy')
             logging.info(f"Saving KLD and lambda range to numpy file {numpy_klds_filename}....")
             np.save(numpy_output_path / numpy_klds_filename, [lambda_range, kl_divs])
 
 
-def _load_dataset(dataset_path: str, attribute: str, batch_size: int):
-    representation = PitchSequenceRepresentation(sequence_length=64)
+def eval_original_distributions(args):
+    for attribute in args.attributes:
+        dataset = load_dataset(dataset_path=args.dataset_path,
+                               sequence_length=args.sequence_length,
+                               attribute=attribute,
+                               batch_size=args.batch_size)
+        attribute_data = []
+        for batch in dataset:
+            attribute_data.append(batch.numpy())
+        attribute_data = np.concatenate(attribute_data, axis=0)
+        output_path = Path(args.histogram_output_path) / "original" / attribute
+        plot_original_distributions(attribute_data, output_path, attribute, args.histogram_bins)
+
+
+def load_dataset(dataset_path: str, sequence_length: int, attribute: str, batch_size: int):
+    representation = PitchSequenceRepresentation(sequence_length=sequence_length)
     tfrecord_loader = TFRecordLoader(
         file_pattern=dataset_path,
         parse_fn=functools.partial(
@@ -96,19 +117,34 @@ def _load_dataset(dataset_path: str, attribute: str, batch_size: int):
         # BoxCox Transform computation
         map_fn=lambda x, _: x[attribute] + keras.backend.epsilon(),
         batch_size=batch_size,
-        batch_drop_reminder=True,
-        deterministic=True
+        batch_drop_reminder=True
     )
     return tfrecord_loader.load_dataset()
 
 
-def _plot_distribution(data,
-                       output_path: Path,
-                       power_transform_id: str,
-                       lmbda: float,
-                       kl_div: float,
-                       attribute: str,
-                       histogram_bins: List[int]):
+def plot_original_distributions(data,
+                                output_path: Path,
+                                attribute: str,
+                                histogram_bins: List[int]):
+    histograms_output_path = output_path / "histograms"
+    histograms_output_path.mkdir(parents=True, exist_ok=True)
+    for bins in histogram_bins:
+        filename = f'{str(histograms_output_path)}/histogram_original_{attribute}_{bins}_bins.png'
+        logging.info(f"Plotting original histogram with {bins} bins for attribute {attribute}...")
+        plt.hist(data, bins=bins, color='blue', alpha=0.7)
+        plt.title(f'{attribute.replace("_", " ").capitalize()} - {bins} bins')
+        plt.grid(linestyle=':')
+        plt.savefig(filename, format='png', dpi=300)
+        plt.close()
+
+
+def plot_pt_distribution(data,
+                         output_path: Path,
+                         power_transform_id: str,
+                         lmbda: float,
+                         kl_div: float,
+                         attribute: str,
+                         histogram_bins: List[int]):
     histograms_output_path = output_path / "histograms"
     histograms_output_path.mkdir(parents=True, exist_ok=True)
     pt_title = power_transform_id
@@ -124,7 +160,7 @@ def _plot_distribution(data,
         plt.close()
 
 
-def _plot_kld_lambda_fn(lambds, klds, output_path: Path, power_transform_id: str, attribute: str):
+def plot_kld_lambda_fn(lambds, klds, output_path: Path, power_transform_id: str, attribute: str):
     pt_title = power_transform_id
     attr_title = attribute.replace("_", " ").capitalize()
     filename = f'{str(output_path)}/kld_vs_lmbda_plot_{power_transform_id.lower()}_{attribute}.png'
@@ -144,21 +180,25 @@ if __name__ == '__main__':
     )
     parser.add_argument('--dataset-path', required=True, help='Path to the dataset containing SequenceExample with the '
                                                               'attributes to evaluate saved in the context.')
+    parser.add_argument('--sequence-length', help='Length of the sequences in the dataset.', required=True, type=int)
     parser.add_argument('--attributes', nargs='+', help='Attributes to evaluate.', required=True)
     parser.add_argument('--histogram-output-path', help='Path where the histograms will be saved.', required=True)
-    parser.add_argument('--histogram-bins', help='Number of bins for the histogram.',  nargs='+', default=[60],
+    parser.add_argument('--histogram-bins', help='Number of bins for the histogram.', nargs='+', default=[60],
                         required=False, type=int)
     parser.add_argument('--batch-size', help='Batch size.', required=False, default=64, type=int,
                         choices=[32, 64, 128, 256, 512])
     parser.add_argument('--power-transform-ids', help="IDs of power transforms to evaluate.", nargs='+',
                         choices=["box-cox", "yeo-johnson"], default=["box-cox", "yeo-johnson"], required=False)
-    parser.add_argument('--lambda-min', help='Lower value of lambda for the power transform.',
+    parser.add_argument('--lambda-min', nargs='+', help='Lower value of lambda for the power transform.',
                         default=-2.0, required=False, type=float)
-    parser.add_argument('--lambda-max', help='Maximum value of lambda for the power transform.',
+    parser.add_argument('--lambda-max', nargs='+', help='Maximum value of lambda for the power transform.',
                         default=2.0, required=False, type=float)
-    parser.add_argument('--lambda-step', help='Increment step for lambda at each iteration.',
+    parser.add_argument('--lambda-step', nargs='+', help='Increment step for lambda at each iteration.',
                         default=0.25, required=False, type=float)
     parser.add_argument('--logging-level', help='Set the logging level.', default="INFO", required=False,
                         choices=["CRITICAL", "ERROR", "WARNING", "INFO"])
     os.environ["KERAS_BACKEND"] = "tensorflow"
-    eval_power_transforms(parser.parse_args())
+    vargs = parser.parse_args()
+    logging.getLogger().setLevel(vargs.logging_level)
+    eval_original_distributions(vargs)
+    eval_power_transforms(vargs)

@@ -131,7 +131,9 @@ def load_pitch_seq_dataset(dataset_config_path: str,
 
     def map_fn(ctx, seq):
         input_seq = tf.transpose(seq["pitch_seq"])
-        attributes = ctx[attribute] if attribute else tf.zeros([batch_size])
+        # Since there may be 0 valued attributes, add an epsilon to everything in order to avoid problems with the
+        # BoxCox Transform computation
+        attributes = ctx[attribute] + keras.backend.epsilon() if attribute else tf.zeros([batch_size])
         target = input_seq
         return (input_seq, attributes), target
 
@@ -170,7 +172,7 @@ def get_trainer(trainer_config_path: Path, model: keras.Model) -> Trainer:
                  keras.metrics.SparseCategoricalAccuracy(),
                  keras.metrics.SparseTopKCategoricalAccuracy()],
         lr_schedule=keras.optimizers.schedules.ExponentialDecay(
-            **trainer.config["compile"]["optimizer"]["learning_rate"]
+            **trainer.config["compile"]["optimizer"]["config"]["learning_rate"]
         )
     )
     return trainer

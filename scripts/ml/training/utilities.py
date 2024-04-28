@@ -153,7 +153,7 @@ def load_pitch_seq_dataset(dataset_config_path: str,
     if training:
         dataset_steps = dataset_cardinality // batch_size
         dataset_repeat_count = total_steps / dataset_steps
-        dataset_repeat_count = total_steps if dataset_repeat_count < 1 else math.ceil(dataset_repeat_count)
+        dataset_repeat_count = None if dataset_repeat_count < 1 else math.ceil(dataset_repeat_count)
     else:
         dataset_repeat_count = total_steps // (fit_config['steps_per_epoch'] * fit_config['validation_freq'])
 

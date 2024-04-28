@@ -2,6 +2,7 @@ import argparse
 import functools
 import json
 import logging
+import math
 from pathlib import Path
 from typing import List
 
@@ -39,9 +40,9 @@ def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strateg
         logging.info(f"No GPU ids provided. Using default GPU device {gpu_list[0]}.")
         selected_gpus = [gpu_list[0]]
 
-    if len(gpu_list) == len(selected_gpus):
-        for gpu in selected_gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
+    for gpu in selected_gpus:
+        tf.config.set_visible_devices(selected_gpus, 'GPU')
+        tf.config.experimental.set_memory_growth(gpu, True)
 
     selected_gpus_name = [selected_gpu.name.replace("/physical_device:", "") for selected_gpu in selected_gpus]
     if len(selected_gpus) > 1:
@@ -114,16 +115,19 @@ def load_datasets(train_dataset_config_path: str,
                   attribute: str = None):
     train_data, input_shape, train_length = load_pitch_seq_dataset(dataset_config_path=train_dataset_config_path,
                                                                    trainer_config_path=trainer_config_path,
-                                                                   attribute=attribute)
+                                                                   attribute=attribute,
+                                                                   training=True)
     val_data, _, val_length = load_pitch_seq_dataset(dataset_config_path=val_dataset_config_path,
                                                      trainer_config_path=trainer_config_path,
-                                                     attribute=attribute)
+                                                     attribute=attribute,
+                                                     training=False)
     return (train_data, train_length), (val_data, val_length), input_shape
 
 
 def load_pitch_seq_dataset(dataset_config_path: str,
                            trainer_config_path: str,
-                           attribute: str = None) -> tf.data.TFRecordDataset:
+                           attribute: str = None,
+                           training: bool = False) -> tf.data.TFRecordDataset:
     def get_input_shape():
         input_seq_shape = batch_size, sequence_length, sequence_features
         aux_input_shape = (batch_size,)
@@ -141,10 +145,18 @@ def load_pitch_seq_dataset(dataset_config_path: str,
         dataset_config = json.load(file)
 
     with open(trainer_config_path) as file:
-        trainer_config = json.load(file)
+        fit_config = json.load(file)["fit"]
 
     dataset_cardinality = dataset_config.pop("dataset_cardinality")
-    batch_size = trainer_config["fit"]["batch_size"]
+    batch_size = fit_config["batch_size"]
+    total_steps = fit_config["total_steps"]
+    if training:
+        dataset_steps = dataset_cardinality // batch_size
+        dataset_repeat_count = total_steps / dataset_steps
+        dataset_repeat_count = total_steps if dataset_repeat_count < 1 else math.ceil(dataset_repeat_count)
+    else:
+        dataset_repeat_count = total_steps // (fit_config['steps_per_epoch'] * fit_config['validation_freq'])
+
     sequence_length = dataset_config.pop("sequence_length")
     sequence_features = dataset_config.pop("sequence_features")
     representation = PitchSequenceRepresentation(sequence_length=sequence_length)
@@ -157,7 +169,7 @@ def load_pitch_seq_dataset(dataset_config_path: str,
         ),
         map_fn=map_fn,
         batch_size=batch_size,
-        repeat_count=trainer_config["fit"]["epochs"],
+        repeat_count=dataset_repeat_count,
         shuffle_buffer_size=dataset_config.pop("shuffle_buffer_size") or dataset_cardinality,
         **dataset_config
     )

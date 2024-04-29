@@ -15,6 +15,7 @@ from resolv_ml.training.callbacks import LearningRateLoggerCallback
 
 from scripts.ml.training import utilities
 
+
 if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train standard VAE model without attribute regularization.")
     args = arg_parser.parse_args()

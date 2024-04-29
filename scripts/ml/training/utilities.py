@@ -130,14 +130,15 @@ def load_pitch_seq_dataset(dataset_config_path: str,
                            training: bool = False) -> tf.data.TFRecordDataset:
     def get_input_shape():
         input_seq_shape = batch_size, sequence_length, sequence_features
-        aux_input_shape = (batch_size,)
+        aux_input_shape = (batch_size, 1)
         return input_seq_shape, aux_input_shape
 
     def map_fn(ctx, seq):
         input_seq = tf.transpose(seq["pitch_seq"])
         # Since there may be 0 valued attributes, add an epsilon to everything in order to avoid problems with the
         # BoxCox Transform computation
-        attributes = ctx[attribute] + keras.backend.epsilon() if attribute else tf.zeros([batch_size])
+        attributes = tf.expand_dims(ctx[attribute] + keras.backend.epsilon(), axis=-1) if attribute \
+            else tf.zeros(shape=(batch_size, 1))
         target = input_seq
         return (input_seq, attributes), target
 

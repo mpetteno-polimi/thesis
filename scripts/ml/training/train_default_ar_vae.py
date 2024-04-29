@@ -41,7 +41,7 @@ if __name__ == '__main__':
         vae = utilities.get_hierarchical_model(
             model_config_path=args.model_config_path,
             attribute_reg_layer=DefaultAttributeRegularization(
-                loss_fn=keras.losses.mean_absolute_error,
+                loss_fn=keras.losses.MeanAbsoluteError(),
                 batch_normalization=keras.layers.BatchNormalization(),
                 regularization_dimension=args.reg_dim,
                 gamma=args.gamma

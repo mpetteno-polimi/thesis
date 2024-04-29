@@ -21,6 +21,7 @@ from resolv_ml.training.callbacks import LearningRateLoggerCallback
 
 from scripts.ml.training import utilities
 
+
 if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train AR-VAE model with sign attribute regularization.")
     arg_parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
@@ -43,7 +44,7 @@ if __name__ == '__main__':
         vae = utilities.get_hierarchical_model(
             model_config_path=args.model_config_path,
             attribute_reg_layer=SignAttributeRegularization(
-                loss_fn=keras.losses.mean_absolute_error,
+                loss_fn=keras.losses.MeanAbsoluteError(),
                 regularization_dimension=args.reg_dim,
                 gamma=args.gamma,
                 scale_factor=args.scale_factor

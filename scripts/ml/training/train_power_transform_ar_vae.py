@@ -22,6 +22,7 @@ from resolv_ml.utilities.distributions.power_transforms import BoxCox, YeoJohnso
 
 from scripts.ml.training import utilities
 
+
 if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train AR-VAE model with sign attribute regularization.")
     arg_parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
@@ -60,7 +61,7 @@ if __name__ == '__main__':
             model_config_path=args.model_config_path,
             attribute_reg_layer=PowerTransformAttributeRegularization(
                 power_transform=power_transform_layer,
-                loss_fn=keras.losses.mean_absolute_error,
+                loss_fn=keras.losses.MeanAbsoluteError(),
                 regularization_dimension=args.reg_dim,
                 gamma=args.gamma
             )

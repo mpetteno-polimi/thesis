@@ -38,8 +38,9 @@ if __name__ == '__main__':
             trainer_config_path=args.trainer_config_path,
             attribute=args.attribute
         )
-        vae = utilities.get_hierarchical_model(
+        vae = utilities.get_model(
             model_config_path=args.model_config_path,
+            hierarchical_decoder=args.hierarchical_decoder,
             attribute_reg_layer=DefaultAttributeRegularization(
                 loss_fn=keras.losses.MeanAbsoluteError(),
                 batch_normalization=keras.layers.BatchNormalization(),

@@ -52,8 +52,9 @@ def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strateg
     return strategy
 
 
-def get_hierarchical_model(model_config_path: Path,
-                           attribute_reg_layer: AttributeRegularizationLayer = None) -> VAE:
+def get_model(model_config_path: Path,
+              hierarchical_decoder: bool = False,
+              attribute_reg_layer: AttributeRegularizationLayer = None) -> VAE:
     with open(model_config_path) as file:
         model_config = json.load(file)
 
@@ -68,25 +69,40 @@ def get_hierarchical_model(model_config_path: Path,
         dropout=encoder_config["dropout"]
     )
 
-    hier_decoder_config = model_config["hier_decoder"]
-    core_decoder_config = hier_decoder_config["core_decoder"]
-    decoder = HierarchicalRNNDecoder(
-        level_lengths=hier_decoder_config["level_lengths"],
-        dec_rnn_sizes=hier_decoder_config["dec_rnn_sizes"],
-        dropout=hier_decoder_config["dropout"],
-        sampling_schedule=core_decoder_config["sampling_schedule"],
-        sampling_rate=core_decoder_config["sampling_rate"],
-        core_decoder=RNNAutoregressiveDecoder(
-            dec_rnn_sizes=core_decoder_config["dec_rnn_sizes"],
+    if hierarchical_decoder:
+        hier_decoder_config = model_config["hier_decoder"]
+        core_decoder_config = hier_decoder_config["core_decoder"]
+        decoder = HierarchicalRNNDecoder(
+            level_lengths=hier_decoder_config["level_lengths"],
+            dec_rnn_sizes=hier_decoder_config["dec_rnn_sizes"],
+            dropout=hier_decoder_config["dropout"],
+            sampling_schedule=core_decoder_config["sampling_schedule"],
+            sampling_rate=core_decoder_config["sampling_rate"],
+            core_decoder=RNNAutoregressiveDecoder(
+                dec_rnn_sizes=core_decoder_config["dec_rnn_sizes"],
+                num_classes=model_config["num_classes"],
+                embedding_layer=keras.layers.Embedding(
+                    input_dim=model_config["num_classes"],
+                    output_dim=model_config["embedding_size"],
+                    name="decoder_embedding"
+                ),
+                dropout=core_decoder_config["dropout"]
+            )
+        )
+    else:
+        decoder_config = model_config["decoder"]
+        decoder = RNNAutoregressiveDecoder(
+            dec_rnn_sizes=decoder_config["dec_rnn_sizes"],
             num_classes=model_config["num_classes"],
             embedding_layer=keras.layers.Embedding(
                 input_dim=model_config["num_classes"],
                 output_dim=model_config["embedding_size"],
                 name="decoder_embedding"
             ),
-            dropout=core_decoder_config["dropout"]
+            dropout=decoder_config["dropout"],
+            sampling_schedule=decoder_config["sampling_schedule"],
+            sampling_rate=decoder_config["sampling_rate"]
         )
-    )
 
     if attribute_reg_layer:
         return AttributeRegularizedVAE(
@@ -194,6 +210,8 @@ def get_trainer(trainer_config_path: Path, model: keras.Model) -> Trainer:
 def get_arg_parser(description: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--model-config-path', help='Path to the model\'s configuration file.', required=True)
+    parser.add_argument('--hierarchical-decoder', help='Use a hierarchical decoder if true', required=False, type=bool,
+                        default=False)
     parser.add_argument('--trainer-config-path', help='Path to the trainer\'s configuration file.', required=True)
     parser.add_argument('--train-dataset-config-path', help='Path to the train dataset\'s configuration file.',
                         required=True)

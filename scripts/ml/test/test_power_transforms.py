@@ -1,5 +1,4 @@
 import argparse
-import functools
 import logging
 import os
 from pathlib import Path
@@ -10,11 +9,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from keras import ops as k_ops
 from resolv_ml.utilities.distributions.power_transforms import BoxCox, YeoJohnson
-from resolv_pipelines.data.loaders import TFRecordLoader
-from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
+
+import utilities
 
 
-def eval_power_transforms(args):
+def test_power_transforms(args):
     class PowerTransformModel(keras.Model):
 
         def __init__(self, pt_id: str, lambd: int):
@@ -50,10 +49,11 @@ def eval_power_transforms(args):
                 pt_model.trainable = False
                 pt_model.compile()
                 # Load dataset
-                dataset = load_dataset(dataset_path=args.dataset_path,
-                                       sequence_length=args.sequence_length,
-                                       attribute=attribute,
-                                       batch_size=args.batch_size)
+                dataset = utilities.load_dataset(dataset_path=args.dataset_path,
+                                                 sequence_length=args.sequence_length,
+                                                 attribute=attribute,
+                                                 batch_size=args.batch_size,
+                                                 parse_sequence_feature=False)
                 # Compute PowerTransform
                 pt_out = pt_model.predict(dataset)
                 pt_out_mean = k_ops.mean(pt_out)
@@ -90,36 +90,19 @@ def eval_power_transforms(args):
             np.save(numpy_output_path / numpy_klds_filename, [lambda_range, kl_divs])
 
 
-def eval_original_distributions(args):
+def test_original_distributions(args):
     for attribute in args.attributes:
-        dataset = load_dataset(dataset_path=args.dataset_path,
-                               sequence_length=args.sequence_length,
-                               attribute=attribute,
-                               batch_size=args.batch_size)
+        dataset = utilities.load_dataset(dataset_path=args.dataset_path,
+                                         sequence_length=args.sequence_length,
+                                         attribute=attribute,
+                                         batch_size=args.batch_size,
+                                         parse_sequence_feature=False)
         attribute_data = []
         for batch in dataset:
             attribute_data.append(batch.numpy())
         attribute_data = np.concatenate(attribute_data, axis=0)
         output_path = Path(args.histogram_output_path) / "original" / attribute
         plot_original_distributions(attribute_data, output_path, attribute, args.histogram_bins)
-
-
-def load_dataset(dataset_path: str, sequence_length: int, attribute: str, batch_size: int):
-    representation = PitchSequenceRepresentation(sequence_length=sequence_length)
-    tfrecord_loader = TFRecordLoader(
-        file_pattern=dataset_path,
-        parse_fn=functools.partial(
-            representation.parse_example,
-            attributes_to_parse=[attribute],
-            parse_sequence_feature=False
-        ),
-        # Since there may be 0 valued attributes, add an epsilon to everything in order to avoid problems with the
-        # BoxCox Transform computation
-        map_fn=lambda x, _: x[attribute] + keras.backend.epsilon(),
-        batch_size=batch_size,
-        batch_drop_reminder=True
-    )
-    return tfrecord_loader.load_dataset()
 
 
 def plot_original_distributions(data,
@@ -200,5 +183,5 @@ if __name__ == '__main__':
     os.environ["KERAS_BACKEND"] = "tensorflow"
     vargs = parser.parse_args()
     logging.getLogger().setLevel(vargs.logging_level)
-    eval_original_distributions(vargs)
-    eval_power_transforms(vargs)
+    test_original_distributions(vargs)
+    test_power_transforms(vargs)

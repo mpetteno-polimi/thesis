@@ -41,8 +41,9 @@ if __name__ == '__main__':
             trainer_config_path=args.trainer_config_path,
             attribute=args.attribute
         )
-        vae = utilities.get_hierarchical_model(
+        vae = utilities.get_model(
             model_config_path=args.model_config_path,
+            hierarchical_decoder=args.hierarchical_decoder,
             attribute_reg_layer=SignAttributeRegularization(
                 loss_fn=keras.losses.MeanAbsoluteError(),
                 regularization_dimension=args.reg_dim,

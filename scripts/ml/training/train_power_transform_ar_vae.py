@@ -57,8 +57,9 @@ if __name__ == '__main__':
         else:
             raise ValueError("Power transform must be box-cox or yeo-johnson.")
 
-        vae = utilities.get_hierarchical_model(
+        vae = utilities.get_model(
             model_config_path=args.model_config_path,
+            hierarchical_decoder=args.hierarchical_decoder,
             attribute_reg_layer=PowerTransformAttributeRegularization(
                 power_transform=power_transform_layer,
                 loss_fn=keras.losses.MeanAbsoluteError(),

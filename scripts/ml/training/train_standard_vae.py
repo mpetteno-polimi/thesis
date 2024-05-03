@@ -29,7 +29,10 @@ if __name__ == '__main__':
             val_dataset_config_path=args.val_dataset_config_path,
             trainer_config_path=args.trainer_config_path
         )
-        vae = utilities.get_hierarchical_model(model_config_path=args.model_config_path)
+        vae = utilities.get_model(
+            model_config_path=args.model_config_path,
+            hierarchical_decoder=args.hierarchical_decoder
+        )
         vae.build(input_shape)
         trainer = utilities.get_trainer(model=vae, trainer_config_path=args.trainer_config_path)
         history = trainer.train(

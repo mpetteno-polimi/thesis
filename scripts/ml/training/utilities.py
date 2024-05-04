@@ -210,8 +210,7 @@ def get_trainer(trainer_config_path: Path, model: keras.Model) -> Trainer:
 def get_arg_parser(description: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--model-config-path', help='Path to the model\'s configuration file.', required=True)
-    parser.add_argument('--hierarchical-decoder', help='Use a hierarchical decoder if true', required=False, type=bool,
-                        default=False)
+    parser.add_argument('--hierarchical-decoder', help='Use a hierarchical decoder.', action="store_true")
     parser.add_argument('--trainer-config-path', help='Path to the trainer\'s configuration file.', required=True)
     parser.add_argument('--train-dataset-config-path', help='Path to the train dataset\'s configuration file.',
                         required=True)

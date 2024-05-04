@@ -87,7 +87,8 @@ def test_model_regularization(args):
 
 
 def test_model_generation(args):
-    model = keras.saving.load_model(args.model_path)
+    model = keras.saving.load_model(args.model_path, compile=False)
+    model.compile(run_eagerly=True)
     for attribute in args.attributes:
         # sample N instances from N(0, I)
         latent_codes = keras.random.normal(shape=(1024, 256), seed=42)

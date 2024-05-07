@@ -18,7 +18,8 @@ def load_dataset(dataset_path: str,
         attributes = ctx[attribute] + keras.backend.epsilon()
         if parse_sequence_feature:
             input_seq = tf.transpose(seq["pitch_seq"])
-            return input_seq, attributes
+            target = input_seq
+            return (input_seq, attributes), target
         else:
             return attributes
 

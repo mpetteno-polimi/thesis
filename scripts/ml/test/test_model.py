@@ -10,9 +10,6 @@ from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
 
 import utilities
 
-import uuid
-from resolv_mir.note_sequence.io import midi_io
-
 
 def test_model_regularization(args):
     Path(args.plot_output_path).mkdir(parents=True, exist_ok=True)
@@ -23,50 +20,15 @@ def test_model_regularization(args):
                                          batch_size=args.batch_size,
                                          parse_sequence_feature=True)
         model = keras.saving.load_model(args.model_path, compile=False)
-        input_sequences = []
-        input_sequences_attributes = []
-        latent_codes = []
-        z_mean = []
-        z_var = []
-        z_reg_dimension = []
-        z_non_reg_dimension = []
-        decoded_sequences = []
-
-        representation = PitchSequenceRepresentation(args.sequence_length)
-
-        for batch in dataset:
-            batch_input_sequence, batch_sequences_attributes = batch
-            input_sequences.append(batch_input_sequence)
-            input_sequences_attributes.append(batch_sequences_attributes)
-            batch_latent_codes, batch_z_mean, batch_z_var = model.encode(batch)
-            latent_codes.append(batch_latent_codes)
-            z_mean.append(batch_z_mean)
-            z_var.append(batch_z_var)
-            z_reg_dimension.append(batch_latent_codes[:, args.regularized_dimension])
-            z_non_reg_dimension.append(batch_latent_codes[:, args.non_regularized_dimension])
-            batch_decoded_sequences = model.decode(batch_latent_codes)
-            decoded_sequences.append(batch_decoded_sequences)
-
-        input_sequences = keras.ops.concatenate(input_sequences, axis=0)
-        input_sequences_attributes = keras.ops.concatenate(input_sequences_attributes, axis=0)
-        latent_codes = keras.ops.concatenate(latent_codes, axis=0)
-        z_mean = keras.ops.concatenate(z_mean, axis=0)
-        z_var = keras.ops.concatenate(z_var, axis=0)
-        z_reg_dimension = keras.ops.concatenate(z_reg_dimension, axis=0)
-        z_non_reg_dimension = keras.ops.concatenate(z_non_reg_dimension, axis=0)
-        decoded_sequences = keras.ops.concatenate(decoded_sequences, axis=0)
-
-        for input_sequence in input_sequences:
-            input_sequence = keras.ops.squeeze(input_sequence, axis=-1)
-            ns = representation.to_canonical_format(input_sequence.numpy(), attributes=None)
-            midi_io.note_sequence_to_midi_file(ns, f"./output/tmp/{uuid.uuid4()}.midi")
+        model.compile(run_eagerly=True)
+        decoded_sequences, latent_codes, input_sequences, input_sequences_attributes = model.predict(dataset)
 
         regularization_scatter_plot(
             output_path=f'{args.plot_output_path}/plot1.png',
             title="",
-            reg_dim_data=z_reg_dimension,
+            reg_dim_data=latent_codes[:, args.regularized_dimension],
             reg_dim_idx=args.regularized_dimension,
-            non_reg_dim_data=z_non_reg_dimension,
+            non_reg_dim_data=latent_codes[:, args.non_regularized_dimension],
             non_reg_dim_idx=args.non_regularized_dimension,
             attributes=input_sequences_attributes,
             attribute_name=attribute,
@@ -76,9 +38,9 @@ def test_model_regularization(args):
         regularization_scatter_plot(
             output_path=f'{args.plot_output_path}/plot2.png',
             title="",
-            reg_dim_data=z_reg_dimension,
+            reg_dim_data=latent_codes[:, args.regularized_dimension],
             reg_dim_idx=args.regularized_dimension,
-            non_reg_dim_data=z_non_reg_dimension,
+            non_reg_dim_data=latent_codes[:, args.non_regularized_dimension],
             non_reg_dim_idx=args.non_regularized_dimension,
             attributes=compute_sequences_attributes(decoded_sequences, attribute, args.sequence_length),
             attribute_name=attribute,
@@ -87,20 +49,21 @@ def test_model_regularization(args):
 
 
 def test_model_generation(args):
-    model = keras.saving.load_model(args.model_path, compile=False)
-    model.compile(run_eagerly=True)
     for attribute in args.attributes:
-        # sample N instances from N(0, I)
-        latent_codes = keras.random.normal(shape=(1024, 256), seed=42)
+        model = keras.saving.load_model(args.model_path, compile=False)
+        model.compile(run_eagerly=True)
+        # sample N = dataset_cardinality instances from model's prior
+        latent_codes = model.sample(keras.ops.convert_to_tensor(args.dataset_cardinality))
         # control regularized dimension
         # latent_codes = []
         # generate the sequence
-        generated_sequences = model.predict(latent_codes, batch_size=args.batch_size)
-        pass
-        # generated_sequences_attributes = compute_sequences_attributes(generated_sequences, attribute, args.sequence_length)
+        generated_sequences = model.decode(inputs=(latent_codes, keras.ops.convert_to_tensor(args.sequence_length)))
+        generated_sequences_attrs = compute_sequences_attributes(generated_sequences, attribute, args.sequence_length)
         # compute Pearson coefficient
 
         # plot regularized dimension vs decoded sequences attributes and fit linear model
+
+        pass
 
 
 def compute_sequences_attributes(decoded_sequences, attribute_name: str, sequence_length: int):
@@ -136,7 +99,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="")
     parser.add_argument('--model-path', required=True, help='Path to the dataset containing SequenceExample with the '
                                                             'attributes to evaluate saved in the context.')
-    parser.add_argument('--dataset-path', required=True, help='Path to the dataset containing the test SequenceExample')
+    parser.add_argument('--test-dataset-path', required=True,
+                        help='Path to the dataset containing the test SequenceExample.')
+    parser.add_argument('--dataset-cardinality', help='Cardinality of the test dataset.', required=True, type=int)
     parser.add_argument('--sequence-length', help='Length of the sequences in the dataset.', required=True, type=int)
     parser.add_argument('--attributes', nargs='+', help='Attributes to evaluate.', required=True)
     parser.add_argument('--regularized-dimension', help='Index of the latent code regularized dimension.',
@@ -151,5 +116,5 @@ if __name__ == '__main__':
     os.environ["KERAS_BACKEND"] = "tensorflow"
     vargs = parser.parse_args()
     logging.getLogger().setLevel(vargs.logging_level)
-    # test_model_regularization(vargs)
+    test_model_regularization(vargs)
     test_model_generation(vargs)

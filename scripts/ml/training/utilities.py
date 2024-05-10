@@ -199,7 +199,8 @@ def get_trainer(trainer_config_path: Path, model: keras.Model) -> Trainer:
         loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=[keras.metrics.SparseCategoricalCrossentropy(from_logits=True),
                  keras.metrics.SparseCategoricalAccuracy(),
-                 keras.metrics.SparseTopKCategoricalAccuracy()],
+                 keras.metrics.SparseTopKCategoricalAccuracy(k=3, name="sparse_top_3_categorical_accuracy"),
+                 keras.metrics.SparseTopKCategoricalAccuracy(k=5, name="sparse_top_5_categorical_accuracy")],
         lr_schedule=keras.optimizers.schedules.ExponentialDecay(
             **trainer.config["compile"]["optimizer"]["config"]["learning_rate"]
         )

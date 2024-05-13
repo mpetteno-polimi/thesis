@@ -35,26 +35,28 @@ def test_model_generation(args):
         generated_sequences = model.decode(inputs=(latent_codes, keras.ops.convert_to_tensor(args.sequence_length)))
         generated_sequences_attrs, hold_note_start_seq_count = utilities.compute_sequences_attributes(
             generated_sequences.numpy(), attribute, args.sequence_length)
-        # compute Pearson coefficient and plot graph with best linear fitting model
+        # compute Pearson coefficient and plot graph with the best linear fitting model
         reg_dim_data = latent_codes[:, args.regularized_dimension]
         correlation_matrix = np.corrcoef(reg_dim_data, generated_sequences_attrs)
         pearson_coefficient = correlation_matrix[0, 1]
         output_dir = Path(args.output_path) / "plots"
         output_dir.mkdir(parents=True, exist_ok=True)
-        plot_reg_dim_vs_attribute(output_path=str(output_dir / 'reg_dim_vs_attribute.png'),
-                                  title="",
-                                  reg_dim_data=reg_dim_data,
-                                  reg_dim_idx=args.regularized_dimension,
-                                  attribute_data=generated_sequences_attrs,
-                                  attribute_name=attribute)
+        slope, intercept = plot_reg_dim_vs_attribute(output_path=str(output_dir / 'reg_dim_vs_attribute.png'),
+                                                     title="",
+                                                     reg_dim_data=reg_dim_data,
+                                                     reg_dim_idx=args.regularized_dimension,
+                                                     attribute_data=generated_sequences_attrs,
+                                                     attribute_name=attribute)
         # convert generated sequences to MIDI and save to disk
         representation = PitchSequenceRepresentation(args.sequence_length)
         seq_to_save_count = min(args.dataset_cardinality, args.num_midi_to_save)
-        random_idx = [random.randint(0, args.dataset_cardinality) for _ in range(seq_to_save_count)]
-        for idx, generated_sequence in enumerate(keras.ops.take(generated_sequences, indices=random_idx, axis=0)):
+        random_idxes = [random.randint(0, args.dataset_cardinality) for _ in range(seq_to_save_count)]
+        for idx, generated_sequence in enumerate(keras.ops.take(generated_sequences, indices=random_idxes, axis=0)):
             generated_note_sequence = representation.to_canonical_format(generated_sequence, attributes=None)
-            midi_io.note_sequence_to_midi_file(generated_note_sequence, Path(args.output_path) / f"midi/{idx}.midi")
+            filename = f"midi/{attribute}_{latent_codes[random_idxes[idx], args.regularized_dimension]:.2f}.midi"
+            midi_io.note_sequence_to_midi_file(generated_note_sequence, Path(args.output_path)/filename)
 
+        logging.info(f"Best linear model fit parameters. Slope: {slope:.2f}, Intercept: {intercept:.2f}")
         logging.info(f"Pearson coefficient {pearson_coefficient:.2f}.")
         logging.info(f"Generated {hold_note_start_seq_count} sequences that start with an hold note token "
                      f"({hold_note_start_seq_count * 100 / args.dataset_cardinality:.2f}%).")
@@ -67,14 +69,14 @@ def plot_reg_dim_vs_attribute(output_path: str,
                               attribute_data,
                               attribute_name: str):
     slope, intercept = np.polyfit(reg_dim_data, attribute_data, 1)
-    logging.info(f"Best linear model fit parameters. Slope: {slope:.2f}, Intercept: {intercept:.2f}")
-    plt.scatter(reg_dim_data, attribute_data, color='blue')
+    plt.scatter(reg_dim_data, attribute_data, color='blue', s=5)
     plt.plot(reg_dim_data, slope * reg_dim_data + intercept, color='red')
     plt.ylabel(f'{attribute_name}')
-    plt.xlabel(f'z_{reg_dim_idx}')
+    plt.xlabel(f'$z_{reg_dim_idx}$')
     plt.title(title)
     plt.savefig(output_path, format='png', dpi=300)
     plt.close()
+    return slope, intercept
 
 
 if __name__ == '__main__':

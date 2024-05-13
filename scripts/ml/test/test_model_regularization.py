@@ -24,7 +24,7 @@ def test_model_regularization(args):
 
         regularization_scatter_plot(
             output_path=str(output_dir/"encoded_sequences_reg_latent_space.png"),
-            title="",
+            title="Latent distribution of encoded sequences",
             reg_dim_data=latent_codes[:, args.regularized_dimension],
             reg_dim_idx=args.regularized_dimension,
             non_reg_dim_data=latent_codes[:, args.non_regularized_dimension],
@@ -38,7 +38,7 @@ def test_model_regularization(args):
             decoded_sequences, attribute, args.sequence_length)
         regularization_scatter_plot(
             output_path=str(output_dir/"decoded_sequences_reg_latent_space.png"),
-            title="",
+            title="Latent distribution of generated sequences",
             reg_dim_data=latent_codes[:, args.regularized_dimension],
             reg_dim_idx=args.regularized_dimension,
             non_reg_dim_data=latent_codes[:, args.non_regularized_dimension],
@@ -64,8 +64,8 @@ def regularization_scatter_plot(output_path: str,
     plt.scatter(x=non_reg_dim_data, y=reg_dim_data, c=attributes, cmap='viridis', alpha=0.8)
     if colorbar:
         plt.colorbar(label=attribute_name)
-    plt.xlabel(f'z_{non_reg_dim_idx}')
-    plt.ylabel(f'z_{reg_dim_idx}')
+    plt.xlabel(f'$z_{{{non_reg_dim_idx}}}$')
+    plt.ylabel(f'$z_{{{reg_dim_idx}}}$')
     plt.title(title)
     plt.savefig(output_path, format='png', dpi=300)
     plt.close()

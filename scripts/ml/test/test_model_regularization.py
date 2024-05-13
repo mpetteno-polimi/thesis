@@ -3,6 +3,9 @@ import os
 from pathlib import Path
 
 import keras
+import numpy as np
+import tensorflow as tf
+import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 
 import utilities
@@ -21,28 +24,38 @@ def test_model_regularization(args):
         model.compile(run_eagerly=True)
         decoded_sequences, latent_codes, input_sequences, input_sequences_attributes = (
             model.predict(dataset, steps=args.dataset_cardinality//args.batch_size))
+        decoded_sequences_attrs, hold_note_start_seq_count = utilities.compute_sequences_attributes(
+            decoded_sequences, attribute, args.sequence_length)
+
+        if not args.non_regularized_dimension:
+            correlation_matrix = np.corrcoef(latent_codes, rowvar=False)
+            non_regularized_dimension = np.argmin(np.abs(correlation_matrix[0, :]))
+            logging.info(f"Setting non regularized dimension to {non_regularized_dimension}. It is the least "
+                         f"correlated dimension with the regularized dimension {args.regularized_dimension}. "
+                         f"Correlation coefficient is: {correlation_matrix[0, non_regularized_dimension]:.5f}")
+        else:
+            non_regularized_dimension = args.non_regularized_dimension
 
         regularization_scatter_plot(
             output_path=str(output_dir/"encoded_sequences_reg_latent_space.png"),
             title="Latent distribution of encoded sequences",
             reg_dim_data=latent_codes[:, args.regularized_dimension],
             reg_dim_idx=args.regularized_dimension,
-            non_reg_dim_data=latent_codes[:, args.non_regularized_dimension],
-            non_reg_dim_idx=args.non_regularized_dimension,
+            non_reg_dim_data=latent_codes[:, non_regularized_dimension],
+            non_reg_dim_idx=non_regularized_dimension,
             attributes=input_sequences_attributes,
             attribute_name=attribute,
-            colorbar=True
+            colorbar=True,
+            norm=colors.PowerNorm(gamma=0.5)
         )
 
-        decoded_sequences_attrs, hold_note_start_seq_count = utilities.compute_sequences_attributes(
-            decoded_sequences, attribute, args.sequence_length)
         regularization_scatter_plot(
             output_path=str(output_dir/"decoded_sequences_reg_latent_space.png"),
             title="Latent distribution of generated sequences",
             reg_dim_data=latent_codes[:, args.regularized_dimension],
             reg_dim_idx=args.regularized_dimension,
-            non_reg_dim_data=latent_codes[:, args.non_regularized_dimension],
-            non_reg_dim_idx=args.non_regularized_dimension,
+            non_reg_dim_data=latent_codes[:, non_regularized_dimension],
+            non_reg_dim_idx=non_regularized_dimension,
             attributes=decoded_sequences_attrs,
             attribute_name=attribute,
             colorbar=True
@@ -60,8 +73,18 @@ def regularization_scatter_plot(output_path: str,
                                 non_reg_dim_idx,
                                 attributes,
                                 attribute_name: str,
-                                colorbar: bool = True):
-    plt.scatter(x=non_reg_dim_data, y=reg_dim_data, c=attributes, cmap='viridis', alpha=0.8)
+                                colorbar: bool = True,
+                                vmin: float = None,
+                                vmax: float = None,
+                                norm: colors.FuncNorm = None):
+    plt.scatter(x=non_reg_dim_data,
+                y=reg_dim_data,
+                c=attributes,
+                norm=norm,
+                vmin=vmin,
+                vmax=vmax,
+                cmap='viridis',
+                alpha=0.8)
     if colorbar:
         plt.colorbar(label=attribute_name)
     plt.xlabel(f'$z_{{{non_reg_dim_idx}}}$')
@@ -73,7 +96,12 @@ def regularization_scatter_plot(output_path: str,
 
 if __name__ == '__main__':
     parser = utilities.get_arg_parser("")
+    parser.add_argument('--non-regularized-dimension', help='Index of the latent code non regularized dimension.',
+                        required=False, type=int)
     os.environ["KERAS_BACKEND"] = "tensorflow"
     vargs = parser.parse_args()
+    if vargs.seed:
+        keras.utils.set_random_seed(vargs.seed)
+        tf.config.experimental.enable_op_determinism()
     logging.getLogger().setLevel(vargs.logging_level)
     test_model_regularization(vargs)

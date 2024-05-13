@@ -65,12 +65,11 @@ def get_arg_parser(description: str) -> argparse.ArgumentParser:
     parser.add_argument('--attributes', nargs='+', help='Attributes to evaluate.', required=True)
     parser.add_argument('--regularized-dimension', help='Index of the latent code regularized dimension.',
                         required=False, type=int, default=0)
-    parser.add_argument('--non-regularized-dimension', help='Index of the latent code non regularized dimension.',
-                        required=False, type=int, default=127)
     parser.add_argument('--output-path', help='Path where the histograms and generated MIDI files will be saved.',
                         required=True)
     parser.add_argument('--batch-size', help='Batch size.', required=False, default=64, type=int,
                         choices=[32, 64, 128, 256, 512])
+    parser.add_argument('--seed', help='Seed for random initializers.', required=False, type=int)
     parser.add_argument('--logging-level', help='Set the logging level.', default="INFO", required=False,
                         choices=["CRITICAL", "ERROR", "WARNING", "INFO"])
     return parser

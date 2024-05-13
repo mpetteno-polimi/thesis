@@ -6,6 +6,7 @@ from pathlib import Path
 import keras
 import matplotlib.pyplot as plt
 import numpy as np
+import tensorflow as tf
 from resolv_mir.note_sequence.io import midi_io
 from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
 
@@ -88,5 +89,8 @@ if __name__ == '__main__':
                                                    'The N sequences will be chosen randomly.', required=True, type=int)
     os.environ["KERAS_BACKEND"] = "tensorflow"
     vargs = parser.parse_args()
+    if vargs.seed:
+        keras.utils.set_random_seed(vargs.seed)
+        tf.config.experimental.enable_op_determinism()
     logging.getLogger().setLevel(vargs.logging_level)
     test_model_generation(vargs)

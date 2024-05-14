@@ -58,7 +58,8 @@ def test_model_regularization(args):
             non_reg_dim_idx=non_regularized_dimension,
             attributes=decoded_sequences_attrs,
             attribute_name=attribute,
-            colorbar=True
+            colorbar=True,
+            norm=colors.PowerNorm(gamma=0.5)
         )
 
         logging.info(f"Decoded {hold_note_start_seq_count} sequences that start with an hold note token "

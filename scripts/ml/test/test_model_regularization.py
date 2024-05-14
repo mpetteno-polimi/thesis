@@ -24,8 +24,6 @@ def test_model_regularization(args):
         model.compile(run_eagerly=True)
         decoded_sequences, latent_codes, input_sequences, input_sequences_attributes = (
             model.predict(dataset, steps=args.dataset_cardinality//args.batch_size))
-        decoded_sequences_attrs, hold_note_start_seq_count = utilities.compute_sequences_attributes(
-            decoded_sequences, attribute, args.sequence_length)
 
         if not args.non_regularized_dimension:
             correlation_matrix = np.corrcoef(latent_codes, rowvar=False)
@@ -36,12 +34,18 @@ def test_model_regularization(args):
         else:
             non_regularized_dimension = args.non_regularized_dimension
 
+        reg_dim_data = latent_codes[:, args.regularized_dimension]
+        non_reg_dim_data = latent_codes[:, non_regularized_dimension]
+
+        # Regularization for encoded sequences
+        enc_reg_corr_mat = np.corrcoef(reg_dim_data, input_sequences_attributes)
+        enc_non_reg_corr_mat = np.corrcoef(non_reg_dim_data, input_sequences_attributes)
         regularization_scatter_plot(
             output_path=str(output_dir/"encoded_sequences_reg_latent_space.png"),
             title="Latent distribution of encoded sequences",
-            reg_dim_data=latent_codes[:, args.regularized_dimension],
+            reg_dim_data=reg_dim_data,
             reg_dim_idx=args.regularized_dimension,
-            non_reg_dim_data=latent_codes[:, non_regularized_dimension],
+            non_reg_dim_data=non_reg_dim_data,
             non_reg_dim_idx=non_regularized_dimension,
             attributes=input_sequences_attributes,
             attribute_name=attribute,
@@ -49,12 +53,17 @@ def test_model_regularization(args):
             norm=colors.PowerNorm(gamma=0.5)
         )
 
+        # Regularization for generated sequences
+        decoded_sequences_attrs, hold_note_start_seq_count = utilities.compute_sequences_attributes(
+            decoded_sequences, attribute, args.sequence_length)
+        gen_reg_corr_mat = np.corrcoef(reg_dim_data, decoded_sequences_attrs)
+        gen_non_reg_corr_mat = np.corrcoef(non_reg_dim_data, decoded_sequences_attrs)
         regularization_scatter_plot(
             output_path=str(output_dir/"decoded_sequences_reg_latent_space.png"),
             title="Latent distribution of generated sequences",
-            reg_dim_data=latent_codes[:, args.regularized_dimension],
+            reg_dim_data=reg_dim_data,
             reg_dim_idx=args.regularized_dimension,
-            non_reg_dim_data=latent_codes[:, non_regularized_dimension],
+            non_reg_dim_data=non_reg_dim_data,
             non_reg_dim_idx=non_regularized_dimension,
             attributes=decoded_sequences_attrs,
             attribute_name=attribute,
@@ -62,6 +71,15 @@ def test_model_regularization(args):
             norm=colors.PowerNorm(gamma=0.5)
         )
 
+        # Logging
+        logging.info(f"Correlation coefficient of input sequences attributes with regularized dimension "
+                     f"{args.regularized_dimension} is: {enc_reg_corr_mat[0, 1]:.2f}")
+        logging.info(f"Correlation coefficient of input sequences attribute with non-regularized dimension "
+                     f"{non_regularized_dimension} is: {enc_non_reg_corr_mat[0, 1]:.2f}")
+        logging.info(f"Correlation coefficient of generated sequences attributes with regularized dimension "
+                     f"{args.regularized_dimension} is: {gen_reg_corr_mat[0, 1]:.2f}")
+        logging.info(f"Correlation coefficient of generated sequences attribute with non-regularized dimension "
+                     f"{non_regularized_dimension} is: {gen_non_reg_corr_mat[0, 1]:.2f}")
         logging.info(f"Decoded {hold_note_start_seq_count} sequences that start with an hold note token "
                      f"({hold_note_start_seq_count*100/args.dataset_cardinality:.2f}%).")
 

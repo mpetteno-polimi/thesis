@@ -13,12 +13,14 @@ Usage example:
         --gpus=0
 
 """
+import json
 import logging
 
 import keras
-from resolv_ml.models.dlvm.vae.ar_vae import PowerTransformAttributeRegularization
 from resolv_ml.training.callbacks import LearningRateLoggerCallback
 from resolv_ml.utilities.distributions.power_transforms import BoxCox, YeoJohnson
+from resolv_ml.utilities.regularizers.attribute import PowerTransformAttributeRegularizer
+from resolv_ml.utilities.schedulers import get_scheduler
 
 from scripts.ml.training import utilities
 
@@ -27,7 +29,6 @@ if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train AR-VAE model with sign attribute regularization.")
     arg_parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
     arg_parser.add_argument('--reg-dim', help='Latent code regularization dimension.', default=0, type=int)
-    arg_parser.add_argument('--gamma', help='Gamma factor to scale regularization loss.', default=1.0, type=float)
     arg_parser.add_argument('--power-transform', help='Power transform to use for regularization.', required=True,
                             choices=['box-cox', 'yeo-johnson'])
     arg_parser.add_argument('--lambda-init', help='Initial value for the power transform lambda parameter.',
@@ -57,14 +58,21 @@ if __name__ == '__main__':
         else:
             raise ValueError("Power transform must be box-cox or yeo-johnson.")
 
+        with open(args.model_config_path) as file:
+            model_config = json.load(file)
+            schedulers_config = model_config["schedulers"]
+
         vae = utilities.get_model(
             model_config_path=args.model_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
-            attribute_reg_layer=PowerTransformAttributeRegularization(
+            attribute_reg_layer=PowerTransformAttributeRegularizer(
+                beta_scheduler=get_scheduler(
+                    schedule_type=schedulers_config["attr_reg_gamma"]["type"],
+                    schedule_config=schedulers_config["attr_reg_gamma"]["config"]
+                ),
                 power_transform=power_transform_layer,
                 loss_fn=keras.losses.MeanAbsoluteError(),
-                regularization_dimension=args.reg_dim,
-                gamma=args.gamma
+                regularization_dimension=args.reg_dim
             )
         )
         vae.build(input_shape)

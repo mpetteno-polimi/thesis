@@ -8,15 +8,16 @@ Usage example:
         --val-dataset-config-path=./scripts/ml/training/config/val_dataset.json \
         --attribute="contour" \
         --reg-dim=0 \
-        --gamma=1.0 \
         --gpus=0
 
 """
+import json
 import logging
 
 import keras
-from resolv_ml.models.dlvm.vae.ar_vae import DefaultAttributeRegularization
 from resolv_ml.training.callbacks import LearningRateLoggerCallback
+from resolv_ml.utilities.regularizers.attribute import DefaultAttributeRegularizer
+from resolv_ml.utilities.schedulers import get_scheduler
 
 from scripts.ml.training import utilities
 
@@ -25,7 +26,6 @@ if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train AR-VAE model with default attribute regularization.")
     arg_parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
     arg_parser.add_argument('--reg-dim', help='Latent code regularization dimension.', default=0, type=int)
-    arg_parser.add_argument('--gamma', help='Gamma factor to scale regularization loss.', default=1.0, type=float)
     args = arg_parser.parse_args()
 
     logging.getLogger().setLevel(args.logging_level)
@@ -38,14 +38,22 @@ if __name__ == '__main__':
             trainer_config_path=args.trainer_config_path,
             attribute=args.attribute
         )
+
+        with open(args.model_config_path) as file:
+            model_config = json.load(file)
+            schedulers_config = model_config["schedulers"]
+
         vae = utilities.get_model(
             model_config_path=args.model_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
-            attribute_reg_layer=DefaultAttributeRegularization(
+            attribute_reg_layer=DefaultAttributeRegularizer(
+                beta_scheduler=get_scheduler(
+                    schedule_type=schedulers_config["attr_reg_gamma"]["type"],
+                    schedule_config=schedulers_config["attr_reg_gamma"]["config"]
+                ),
                 loss_fn=keras.losses.MeanAbsoluteError(),
                 batch_normalization=keras.layers.BatchNormalization(),
-                regularization_dimension=args.reg_dim,
-                gamma=args.gamma
+                regularization_dimension=args.reg_dim
             )
         )
         vae.build(input_shape)

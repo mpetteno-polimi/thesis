@@ -13,11 +13,13 @@ Usage example:
         --gpus=0
 
 """
+import json
 import logging
 
 import keras
-from resolv_ml.models.dlvm.vae.ar_vae import SignAttributeRegularization
 from resolv_ml.training.callbacks import LearningRateLoggerCallback
+from resolv_ml.utilities.regularizers.attribute import SignAttributeRegularizer
+from resolv_ml.utilities.schedulers import get_scheduler
 
 from scripts.ml.training import utilities
 
@@ -26,7 +28,6 @@ if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train AR-VAE model with sign attribute regularization.")
     arg_parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
     arg_parser.add_argument('--reg-dim', help='Latent code regularization dimension.', default=0, type=int)
-    arg_parser.add_argument('--gamma', help='Gamma factor to scale regularization loss.', default=1.0, type=float)
     arg_parser.add_argument('--scale-factor', help='Scale factor for tanh in sign regularization loss.', default=1.0,
                             type=float)
     args = arg_parser.parse_args()
@@ -41,13 +42,21 @@ if __name__ == '__main__':
             trainer_config_path=args.trainer_config_path,
             attribute=args.attribute
         )
+
+        with open(args.model_config_path) as file:
+            model_config = json.load(file)
+            schedulers_config = model_config["schedulers"]
+
         vae = utilities.get_model(
             model_config_path=args.model_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
-            attribute_reg_layer=SignAttributeRegularization(
+            attribute_reg_layer=SignAttributeRegularizer(
+                beta_scheduler=get_scheduler(
+                    schedule_type=schedulers_config["attr_reg_gamma"]["type"],
+                    schedule_config=schedulers_config["attr_reg_gamma"]["config"]
+                ),
                 loss_fn=keras.losses.MeanAbsoluteError(),
                 regularization_dimension=args.reg_dim,
-                gamma=args.gamma,
                 scale_factor=args.scale_factor
             )
         )

@@ -10,10 +10,12 @@ import keras
 import tensorflow as tf
 from resolv_ml.models.dlvm.vae.base import VAE
 from resolv_ml.models.dlvm.vae.vanilla_vae import StandardVAE
-from resolv_ml.models.dlvm.vae.ar_vae import AttributeRegularizedVAE, AttributeRegularizationLayer
+from resolv_ml.models.dlvm.vae.ar_vae import AttributeRegularizedVAE
 from resolv_ml.models.seq2seq.rnn.decoders import HierarchicalRNNDecoder, RNNAutoregressiveDecoder
 from resolv_ml.models.seq2seq.rnn.encoders import BidirectionalRNNEncoder
 from resolv_ml.training.trainer import Trainer
+from resolv_ml.utilities.regularizers.attribute import AttributeRegularizer
+from resolv_ml.utilities.schedulers import get_scheduler
 from resolv_pipelines.data.loaders import TFRecordLoader
 from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
 
@@ -54,9 +56,10 @@ def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strateg
 
 def get_model(model_config_path: Path,
               hierarchical_decoder: bool = False,
-              attribute_reg_layer: AttributeRegularizationLayer = None) -> VAE:
+              attribute_reg_layer: AttributeRegularizer = None) -> VAE:
     with open(model_config_path) as file:
         model_config = json.load(file)
+        schedulers_config = model_config["schedulers"]
 
     encoder_config = model_config["encoder"]
     encoder = BidirectionalRNNEncoder(
@@ -76,8 +79,10 @@ def get_model(model_config_path: Path,
             level_lengths=hier_decoder_config["level_lengths"],
             dec_rnn_sizes=hier_decoder_config["dec_rnn_sizes"],
             dropout=hier_decoder_config["dropout"],
-            sampling_schedule=core_decoder_config["sampling_schedule"],
-            sampling_rate=core_decoder_config["sampling_rate"],
+            sampling_scheduler=get_scheduler(
+                schedule_type=schedulers_config["sampling_probability"]["type"],
+                schedule_config=schedulers_config["sampling_probability"]["config"]
+            ),
             core_decoder=RNNAutoregressiveDecoder(
                 dec_rnn_sizes=core_decoder_config["dec_rnn_sizes"],
                 num_classes=model_config["num_classes"],
@@ -100,8 +105,10 @@ def get_model(model_config_path: Path,
                 name="decoder_embedding"
             ),
             dropout=decoder_config["dropout"],
-            sampling_schedule=decoder_config["sampling_schedule"],
-            sampling_rate=decoder_config["sampling_rate"]
+            sampling_scheduler=get_scheduler(
+                schedule_type=schedulers_config["sampling_probability"]["type"],
+                schedule_config=schedulers_config["sampling_probability"]["config"]
+            )
         )
 
     if attribute_reg_layer:
@@ -110,18 +117,22 @@ def get_model(model_config_path: Path,
             input_processing_layer=encoder,
             generative_layer=decoder,
             attribute_regularization_layer=attribute_reg_layer,
-            max_beta=model_config["hparams"]["max_beta"],
-            beta_rate=model_config["hparams"]["beta_rate"],
-            free_bits=model_config["hparams"]["free_bits"]
+            free_bits=model_config["free_bits"],
+            div_beta_scheduler=get_scheduler(
+                schedule_type=schedulers_config["kl_div_beta"]["type"],
+                schedule_config=schedulers_config["kl_div_beta"]["config"]
+            )
         )
     else:
         return StandardVAE(
             z_size=model_config["z_size"],
             input_processing_layer=encoder,
             generative_layer=decoder,
-            max_beta=model_config["hparams"]["max_beta"],
-            beta_rate=model_config["hparams"]["beta_rate"],
-            free_bits=model_config["hparams"]["free_bits"]
+            free_bits=model_config["free_bits"],
+            div_beta_scheduler=get_scheduler(
+                schedule_type=schedulers_config["kl_div_beta"]["type"],
+                schedule_config=schedulers_config["kl_div_beta"]["config"]
+            )
         )
 
 

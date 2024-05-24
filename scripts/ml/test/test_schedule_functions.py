@@ -14,7 +14,7 @@ if __name__ == '__main__':
     kld_schedule_config = {
         "rate": 0.9999,
         "min_value": 0.0,
-        "max_value": 0.2,
+        "max_value": 0.01,
         "decay": False
     }
     kld_scheduler = get_scheduler(kld_schedule_type, kld_schedule_config)
@@ -51,15 +51,15 @@ if __name__ == '__main__':
     # Plot
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
-    plt.plot(x, y_kld_scheduler, label="$\\beta$-KLD", color='blue')
     plt.plot(x, y_attr_reg_scheduler, label="$\\gamma$-Attr", color='red')
     plt.plot(x, y_sampling_prob_scheduler, label="P-Sampling", color='green')
-    plt.axhline(max(y_kld_scheduler), color='purple', linestyle='--', linewidth=0.8,
-                label=f'max(kld)={max(y_kld_scheduler):.4f}')
     plt.legend()
     plt.xlabel('x')
     plt.ylabel('y')
     plt.subplot(1, 2, 2)
+    plt.plot(x, y_kld_scheduler, label="$\\beta$-KLD", color='blue')
+    plt.axhline(max(y_kld_scheduler), color='purple', linestyle='--', linewidth=0.8,
+                label=f'max(kld)={max(y_kld_scheduler):.4f}')
     plt.plot(x, y_lr_scheduler, label="LR", color='purple')
     plt.axhline(min(y_lr_scheduler), color='blue', linestyle='--', linewidth=0.8,
                 label=f'min(lr)={min(y_lr_scheduler):.8f}')

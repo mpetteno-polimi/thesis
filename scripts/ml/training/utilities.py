@@ -54,12 +54,16 @@ def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strateg
     return strategy
 
 
-def get_model(model_config_path: Path,
+def get_model(model_config_path: str,
+              trainer_config_path: str,
               hierarchical_decoder: bool = False,
               attribute_reg_layer: AttributeRegularizer = None) -> VAE:
     with open(model_config_path) as file:
         model_config = json.load(file)
         schedulers_config = model_config["schedulers"]
+
+    with open(trainer_config_path) as file:
+        fit_config = json.load(file)["fit"]
 
     encoder_config = model_config["encoder"]
     encoder = BidirectionalRNNEncoder(
@@ -107,7 +111,10 @@ def get_model(model_config_path: Path,
             dropout=decoder_config["dropout"],
             sampling_scheduler=get_scheduler(
                 schedule_type=schedulers_config["sampling_probability"]["type"],
-                schedule_config=schedulers_config["sampling_probability"]["config"]
+                schedule_config={
+                    **schedulers_config["sampling_probability"]["config"],
+                    "total_steps": fit_config["total_steps"]
+                }
             )
         )
 
@@ -120,7 +127,10 @@ def get_model(model_config_path: Path,
             free_bits=model_config["free_bits"],
             div_beta_scheduler=get_scheduler(
                 schedule_type=schedulers_config["kl_div_beta"]["type"],
-                schedule_config=schedulers_config["kl_div_beta"]["config"]
+                schedule_config={
+                    **schedulers_config["kl_div_beta"]["config"],
+                    "total_steps": fit_config["total_steps"]
+                }
             )
         )
     else:
@@ -131,7 +141,10 @@ def get_model(model_config_path: Path,
             free_bits=model_config["free_bits"],
             div_beta_scheduler=get_scheduler(
                 schedule_type=schedulers_config["kl_div_beta"]["type"],
-                schedule_config=schedulers_config["kl_div_beta"]["config"]
+                schedule_config={
+                    **schedulers_config["kl_div_beta"]["config"],
+                    "total_steps": fit_config["total_steps"]
+                }
             )
         )
 

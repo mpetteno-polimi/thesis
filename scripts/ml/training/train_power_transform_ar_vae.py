@@ -62,13 +62,19 @@ if __name__ == '__main__':
             model_config = json.load(file)
             schedulers_config = model_config["schedulers"]
 
+        with open(args.trainer_config_path) as file:
+            fit_config = json.load(file)["fit"]
+
         vae = utilities.get_model(
             model_config_path=args.model_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
             attribute_reg_layer=PowerTransformAttributeRegularizer(
                 beta_scheduler=get_scheduler(
                     schedule_type=schedulers_config["attr_reg_gamma"]["type"],
-                    schedule_config=schedulers_config["attr_reg_gamma"]["config"]
+                    schedule_config={
+                        **schedulers_config["attr_reg_gamma"]["config"],
+                        "total_steps": fit_config["total_steps"]
+                    }
                 ),
                 power_transform=power_transform_layer,
                 loss_fn=keras.losses.MeanAbsoluteError(),

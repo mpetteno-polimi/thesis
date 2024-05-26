@@ -48,14 +48,12 @@ if __name__ == '__main__':
 
         vae = utilities.get_model(
             model_config_path=args.model_config_path,
+            trainer_config_path=args.trainer_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
             attribute_reg_layer=DefaultAttributeRegularizer(
                 beta_scheduler=get_scheduler(
                     schedule_type=schedulers_config["attr_reg_gamma"]["type"],
-                    schedule_config={
-                        **schedulers_config["attr_reg_gamma"]["config"],
-                        "total_steps": fit_config["total_steps"]
-                    }
+                    schedule_config=schedulers_config["attr_reg_gamma"]["config"]
                 ),
                 loss_fn=keras.losses.MeanAbsoluteError(),
                 batch_normalization=keras.layers.BatchNormalization(),

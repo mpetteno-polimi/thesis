@@ -14,7 +14,7 @@ if __name__ == '__main__':
     kld_schedule_config = {
         "rate": 0.9999,
         "min_value": 0.0,
-        "max_value": 0.01,
+        "max_value": 0.001,
         "decay": False
     }
     kld_scheduler = get_scheduler(kld_schedule_type, kld_schedule_config)
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     # Sampling probability
     sampling_prob_schedule_type = "sigmoid"
     sampling_prob_schedule_config = {
-        "rate": 2000,
+        "rate": 2500,
         "min_value": 0.0,
         "max_value": 1.0,
         "decay": False

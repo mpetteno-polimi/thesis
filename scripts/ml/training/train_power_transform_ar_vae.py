@@ -19,7 +19,7 @@ import logging
 import keras
 from resolv_ml.training.callbacks import LearningRateLoggerCallback
 from resolv_ml.utilities.distributions.power_transforms import BoxCox, YeoJohnson
-from resolv_ml.utilities.regularizers.attribute import PowerTransformAttributeRegularizer
+from resolv_ml.utilities.regularizers.attribute import DefaultAttributeRegularizer
 from resolv_ml.utilities.schedulers import get_scheduler
 
 from scripts.ml.training import utilities
@@ -69,12 +69,12 @@ if __name__ == '__main__':
             model_config_path=args.model_config_path,
             trainer_config_path=args.trainer_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
-            attribute_reg_layer=PowerTransformAttributeRegularizer(
+            attribute_proc_layer=power_transform_layer,
+            attribute_reg_layer=DefaultAttributeRegularizer(
                 beta_scheduler=get_scheduler(
                     schedule_type=schedulers_config["attr_reg_gamma"]["type"],
                     schedule_config=schedulers_config["attr_reg_gamma"]["config"]
                 ),
-                power_transform=power_transform_layer,
                 loss_fn=keras.losses.MeanAbsoluteError(),
                 regularization_dimension=args.reg_dim
             )

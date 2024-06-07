@@ -22,8 +22,8 @@ def test_model_regularization(args):
                                          parse_sequence_feature=True)
         model = keras.saving.load_model(args.model_path, compile=False)
         model.compile(run_eagerly=True)
-        decoded_sequences, latent_codes, input_sequences, input_sequences_attributes = (
-            model.predict(dataset, steps=args.dataset_cardinality//args.batch_size))
+        (decoded_sequences, latent_codes, input_sequences, input_sequences_attributes,
+            batch_norm_sequences_attributes) = model.predict(dataset, steps=args.dataset_cardinality//args.batch_size)
 
         if not args.non_regularized_dimension:
             correlation_matrix = np.corrcoef(latent_codes, rowvar=False)

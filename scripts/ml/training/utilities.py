@@ -57,6 +57,7 @@ def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strateg
 def get_model(model_config_path: str,
               trainer_config_path: str,
               hierarchical_decoder: bool = False,
+              attribute_proc_layer: keras.Layer = None,
               attribute_reg_layer: AttributeRegularizer = None) -> VAE:
     with open(model_config_path) as file:
         model_config = json.load(file)
@@ -123,6 +124,7 @@ def get_model(model_config_path: str,
             z_size=model_config["z_size"],
             input_processing_layer=encoder,
             generative_layer=decoder,
+            attribute_processing_layer=attribute_proc_layer,
             attribute_regularization_layer=attribute_reg_layer,
             free_bits=model_config["free_bits"],
             div_beta_scheduler=get_scheduler(

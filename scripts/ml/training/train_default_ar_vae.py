@@ -50,13 +50,13 @@ if __name__ == '__main__':
             model_config_path=args.model_config_path,
             trainer_config_path=args.trainer_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
+            attribute_proc_layer=keras.layers.BatchNormalization(center=False, scale=False),
             attribute_reg_layer=DefaultAttributeRegularizer(
                 beta_scheduler=get_scheduler(
                     schedule_type=schedulers_config["attr_reg_gamma"]["type"],
                     schedule_config=schedulers_config["attr_reg_gamma"]["config"]
                 ),
                 loss_fn=keras.losses.MeanAbsoluteError(),
-                batch_normalization=keras.layers.BatchNormalization(),
                 regularization_dimension=args.reg_dim
             )
         )

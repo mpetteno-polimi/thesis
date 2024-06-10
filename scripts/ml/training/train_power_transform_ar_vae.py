@@ -48,12 +48,12 @@ if __name__ == '__main__':
         if args.power_transform == "box-cox":
             power_transform_layer = BoxCox(
                 lambda_init=args.lambda_init,
-                batch_norm=keras.layers.BatchNormalization()
+                batch_norm=keras.layers.BatchNormalization(scale=False, center=False)
             )
         elif args.power_transform == "yeo-johnson":
             power_transform_layer = YeoJohnson(
                 lambda_init=args.lambda_init,
-                batch_norm=keras.layers.BatchNormalization()
+                batch_norm=keras.layers.BatchNormalization(scale=False, center=False)
             )
         else:
             raise ValueError("Power transform must be box-cox or yeo-johnson.")
@@ -76,7 +76,8 @@ if __name__ == '__main__':
                     schedule_config=schedulers_config["attr_reg_gamma"]["config"]
                 ),
                 loss_fn=keras.losses.MeanAbsoluteError(),
-                regularization_dimension=args.reg_dim
+                regularization_dimension=args.reg_dim,
+                name="pt_attr_regularizer"
             )
         )
         vae.build(input_shape)

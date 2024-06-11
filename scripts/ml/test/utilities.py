@@ -31,7 +31,7 @@ def load_dataset(dataset_path: str,
     def map_fn(ctx, seq):
         # Since there may be 0 valued attributes, add an epsilon to everything in order to avoid problems with the
         # BoxCox Transform computation
-        attributes = ctx[attribute] + keras.backend.epsilon()
+        attributes = tf.expand_dims(ctx[attribute] + keras.backend.epsilon(), axis=-1)
         if parse_sequence_feature:
             input_seq = tf.transpose(seq["pitch_seq"])
             target = input_seq

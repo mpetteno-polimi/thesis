@@ -24,6 +24,7 @@ def test_model_regularization(args):
         model.compile(run_eagerly=True)
         (decoded_sequences, latent_codes, input_sequences, input_sequences_attributes,
             batch_norm_sequences_attributes) = model.predict(dataset, steps=args.dataset_cardinality//args.batch_size)
+        batch_norm_sequences_attributes = batch_norm_sequences_attributes[:, 0]
 
         if not args.non_regularized_dimension:
             correlation_matrix = np.corrcoef(latent_codes, rowvar=False)
@@ -38,8 +39,8 @@ def test_model_regularization(args):
         non_reg_dim_data = latent_codes[:, non_regularized_dimension]
 
         # Regularization for encoded sequences
-        enc_reg_corr_mat = np.corrcoef(reg_dim_data, input_sequences_attributes)
-        enc_non_reg_corr_mat = np.corrcoef(non_reg_dim_data, input_sequences_attributes)
+        enc_reg_corr_mat = np.corrcoef(reg_dim_data, batch_norm_sequences_attributes)
+        enc_non_reg_corr_mat = np.corrcoef(non_reg_dim_data, batch_norm_sequences_attributes)
         regularization_scatter_plot(
             output_path=str(output_dir/"encoded_sequences_reg_latent_space.png"),
             title="Latent distribution of encoded sequences",
@@ -47,7 +48,7 @@ def test_model_regularization(args):
             reg_dim_idx=args.regularized_dimension,
             non_reg_dim_data=non_reg_dim_data,
             non_reg_dim_idx=non_regularized_dimension,
-            attributes=input_sequences_attributes,
+            attributes=batch_norm_sequences_attributes,
             attribute_name=attribute,
             colorbar=True,
             norm=colors.PowerNorm(gamma=0.5)

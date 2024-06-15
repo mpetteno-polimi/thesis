@@ -48,11 +48,13 @@ if __name__ == '__main__':
         if args.power_transform == "box-cox":
             power_transform_layer = BoxCox(
                 lambda_init=args.lambda_init,
+                trainable=False,
                 batch_norm=keras.layers.BatchNormalization(scale=False, center=False)
             )
         elif args.power_transform == "yeo-johnson":
             power_transform_layer = YeoJohnson(
                 lambda_init=args.lambda_init,
+                trainable=False,
                 batch_norm=keras.layers.BatchNormalization(scale=False, center=False)
             )
         else:

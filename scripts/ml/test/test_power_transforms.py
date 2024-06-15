@@ -2,13 +2,15 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Callable
 
 import keras
+import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
 from keras import ops as k_ops
 from resolv_ml.utilities.distributions.power_transforms import BoxCox, YeoJohnson
+from scipy.stats import kurtosis
 
 import utilities
 
@@ -19,9 +21,9 @@ def test_power_transforms(args):
         def __init__(self, pt_id: str, lambd: int):
             super(PowerTransformModel, self).__init__()
             if pt_id == 'box-cox':
-                self._pt_layer = BoxCox(lambda_init=lambd)
+                self._pt_layer = BoxCox(lambda_init=lambd, trainable=False)
             elif pt_id == 'yeo-johnson':
-                self._pt_layer = YeoJohnson(lambda_init=lambd)
+                self._pt_layer = YeoJohnson(lambda_init=lambd, trainable=False)
             else:
                 raise ValueError(f'Unknown pt_id: {pt_id}')
             self.name = self._pt_layer.name
@@ -31,78 +33,127 @@ def test_power_transforms(args):
 
     for attribute in args.attributes:
         for idx, power_transform_id in enumerate(args.power_transform_ids):
-            output_path = Path(args.histogram_output_path) / "power-transforms" / power_transform_id.lower() / attribute
-            output_path.mkdir(parents=True, exist_ok=True)
-            numpy_output_path = output_path / "numpy"
-            numpy_output_path.mkdir(parents=True, exist_ok=True)
-            kl_divs = []
             # Compute lambda range
             lambda_min = args.lambda_min[idx] if len(args.lambda_min) > 1 else args.lambda_min[0]
             lambda_max = args.lambda_max[idx] if len(args.lambda_max) > 1 else args.lambda_max[0]
             lambda_step = args.lambda_step[idx] if len(args.lambda_step) > 1 else args.lambda_step[0]
             lambda_range = k_ops.arange(lambda_min, lambda_max, lambda_step)
-            for lmbda in lambda_range:
-                logging.info(f"Evaluating {power_transform_id} power transform with lambda {lmbda:.2f} for attribute "
-                             f"'{attribute}'...")
-                # Create PowerTransform model
-                pt_model = PowerTransformModel(power_transform_id, lmbda)
-                pt_model.trainable = False
-                pt_model.compile()
-                # Load dataset
-                dataset = utilities.load_dataset(dataset_path=args.dataset_path,
-                                                 sequence_length=args.sequence_length,
-                                                 attribute=attribute,
-                                                 batch_size=args.batch_size,
-                                                 parse_sequence_feature=False)
-                # Compute PowerTransform
-                pt_out = pt_model.predict(dataset)
-                pt_out_mean = k_ops.mean(pt_out)
-                pt_out_std = k_ops.std(pt_out)
-                # Compute KLD
-                logging.info(f"Computing Kullback–Leibler Divergence...")
-                kl_div = -0.5 * k_ops.sum((1 + k_ops.log(pt_out_std) - k_ops.square(pt_out_mean) - pt_out_std))
-                kl_divs.append(kl_div)
-                logging.info(f"Kullback–Leibler Divergence is {kl_div:.2f}.")
-                # Plot histogram of the output distribution
-                logging.info(f"Plotting output distribution histogram...")
-                pt_out_norm = (pt_out - pt_out_mean) / pt_out_std
-                plot_pt_distribution(
-                    data=pt_out_norm.numpy(),
-                    output_path=output_path,
-                    power_transform_id=power_transform_id,
-                    lmbda=lmbda,
-                    kl_div=kl_div,
-                    attribute=attribute,
-                    histogram_bins=args.histogram_bins
-                )
-                # Save output distribution
-                numpy_pt_out_filename = (f'pt_out_norm_{power_transform_id.lower()}_{attribute}'
-                                         f'_lambda_{lmbda:.2f}_kld_{kl_div:.2f}.npy')
-                logging.info(f"Saving output distribution to numpy file {numpy_pt_out_filename}....")
-                np.save(numpy_output_path / numpy_pt_out_filename, pt_out_norm)
-            # Plot KLD as a function of lambda
-            logging.info(f"Plotting KLD as a function of lambda...")
-            plot_kld_lambda_fn(lambda_range, kl_divs, output_path, power_transform_id, attribute)
-            # Save KLD and lambda range
-            numpy_klds_filename = (f'klds_{power_transform_id.lower()}_{attribute}_'
-                                   f'lmin_{lambda_min}_lmax_{lambda_max}_lstep_{lambda_step}.npy')
-            logging.info(f"Saving KLD and lambda range to numpy file {numpy_klds_filename}....")
-            np.save(numpy_output_path / numpy_klds_filename, [lambda_range, kl_divs])
+            # Initialize output paths
+            output_path = Path(args.histogram_output_path) / "power-transforms" / power_transform_id.lower() / attribute
+            numpy_output_path = output_path / "numpy"
+            numpy_kurt_filename = f'kurtosis_{power_transform_id.lower()}_{attribute}.npy'
+            numpy_negentropy_naive_filename = f'negentropy_naive_{power_transform_id.lower()}_{attribute}.npy'
+            numpy_negentropy_exp_filename = f'negentropy_exp_{power_transform_id.lower()}_{attribute}.npy'
+            numpy_negentropy_cosh_filename = f'negentropy_cosh_{power_transform_id.lower()}_{attribute}.npy'
+            if not output_path.exists():
+                output_path.mkdir(parents=True, exist_ok=True)
+                numpy_output_path.mkdir(parents=True, exist_ok=True)
+                kurtosis_idx = []
+                negentropy_naive_idx = []
+                negentropy_exp_idx = []
+                negentropy_cosh_idx = []
+                for lmbda in lambda_range:
+                    logging.info(f"Evaluating {power_transform_id} power transform with lambda {lmbda:.2f} for attribute "
+                                 f"'{attribute}'...")
+                    # Create PowerTransform model
+                    pt_model = PowerTransformModel(power_transform_id, lmbda)
+                    pt_model.trainable = False
+                    pt_model.compile()
+                    # Load dataset
+                    dataset = utilities.load_dataset(dataset_path=args.dataset_path,
+                                                     sequence_length=args.sequence_length,
+                                                     attribute=attribute,
+                                                     batch_size=args.batch_size,
+                                                     parse_sequence_feature=False)
+                    # Compute PowerTransform
+                    pt_out = pt_model.predict(dataset)
+                    pt_out_norm = (pt_out - k_ops.mean(pt_out)) / k_ops.std(pt_out)
+                    pt_out_norm = pt_out_norm.numpy()
+                    # Compute Kurtosis
+                    kurt = kurtosis(pt_out_norm)[0]
+                    kurtosis_idx.append(kurt)
+                    logging.info(f"Kurtosis index is {kurt:.5f}.")
+                    # Compute Negentropy Naive
+                    negentropy_naive = negentropy_approx_naive(pt_out_norm)
+                    negentropy_naive_idx.append(negentropy_naive)
+                    logging.info(f"Negentropy naive index is {negentropy_naive:.5f}.")
+                    # Compute Negentropy exp
+                    negentropy_exp = negentropy_approx_fn(pt_out_norm, lambda u: -np.exp(-u ** 2 / 2))
+                    negentropy_exp_idx.append(negentropy_exp)
+                    logging.info(f"Negentropy exp index is {negentropy_exp:.5f}.")
+                    # Compute Negentropy cosh
+                    negentropy_cosh = negentropy_approx_fn(pt_out_norm, lambda u: np.log(np.cosh(u)))
+                    negentropy_cosh_idx.append(negentropy_cosh)
+                    logging.info(f"Negentropy cosh index is {negentropy_cosh:.5f}.")
+                    # Plot histogram of the output distribution
+                    logging.info(f"Plotting output distribution histogram...")
+                    plot_pt_distribution(
+                        data=pt_out_norm,
+                        output_path=output_path,
+                        power_transform_id=power_transform_id,
+                        lmbda=lmbda,
+                        attribute=attribute,
+                        histogram_bins=args.histogram_bins
+                    )
+                    # Save output distribution
+                    numpy_pt_out_filename = f'pt_out_norm_{power_transform_id.lower()}_{attribute}_lambda_{lmbda:.2f}.npy'
+                    logging.info(f"Saving output distribution to numpy file {numpy_pt_out_filename}....")
+                    np.save(numpy_output_path / numpy_pt_out_filename, pt_out_norm)
+                # Save idx to Numpy file
+                logging.info(f"Saving Kurtosis and lambda range to numpy file {numpy_kurt_filename}....")
+                np.save(numpy_output_path / numpy_kurt_filename, [lambda_range, kurtosis_idx])
+                logging.info(f"Saving Negentropy naive and lambda range to numpy file "
+                             f"{numpy_negentropy_naive_filename}....")
+                np.save(numpy_output_path / numpy_negentropy_naive_filename, [lambda_range, negentropy_naive_idx])
+                logging.info(f"Saving Negentropy exp and lambda range to numpy file {numpy_negentropy_exp_filename}....")
+                np.save(numpy_output_path / numpy_negentropy_exp_filename, [lambda_range, negentropy_exp_idx])
+                logging.info(f"Saving Negentropy cosh and lambda range to numpy file {numpy_negentropy_cosh_filename}....")
+                np.save(numpy_output_path / numpy_negentropy_cosh_filename, [lambda_range, negentropy_cosh_idx])
+            else:
+                kurtosis_idx = np.load(numpy_output_path / numpy_kurt_filename)
+                original_lambda_range = kurtosis_idx[0, :]
+                indexes = np.where(np.isclose(original_lambda_range[:, None], lambda_range).any(axis=1))[0]
+                kurtosis_idx = kurtosis_idx[1][indexes]
+                negentropy_naive_idx = np.load(numpy_output_path / numpy_negentropy_naive_filename)[1][indexes]
+                negentropy_exp_idx = np.load(numpy_output_path / numpy_negentropy_exp_filename)[1][indexes]
+                negentropy_cosh_idx = np.load(numpy_output_path / numpy_negentropy_cosh_filename)[1][indexes]
+            # Plot indexes as a function of lambda
+            logging.info(f"Plotting kurtosis and negentropy as a function of lambda...")
+            plot_idx_lambda_fn(lambda_range,
+                               kurtosis_idx,
+                               negentropy_naive_idx,
+                               negentropy_exp_idx,
+                               negentropy_cosh_idx,
+                               output_path,
+                               power_transform_id,
+                               attribute)
+
+
+def negentropy_approx_naive(x):
+    return (1 / 12) * np.mean(x ** 3) ** 2 + (1 / 48) * kurtosis(x)[0] ** 2
+
+
+def negentropy_approx_fn(x, fn: Callable):
+    gaussian_data = np.random.normal(0, 1, x.shape[0])
+    negentropy = (np.mean(fn(x)) - np.mean(fn(gaussian_data))) ** 2
+    return negentropy
 
 
 def test_original_distributions(args):
     for attribute in args.attributes:
-        dataset = utilities.load_dataset(dataset_path=args.dataset_path,
-                                         sequence_length=args.sequence_length,
-                                         attribute=attribute,
-                                         batch_size=args.batch_size,
-                                         parse_sequence_feature=False)
-        attribute_data = []
-        for batch in dataset:
-            attribute_data.append(batch.numpy())
-        attribute_data = np.concatenate(attribute_data, axis=0)
+        logging.info(f"Evaluating original distribution for attribute '{attribute}'...")
         output_path = Path(args.histogram_output_path) / "original" / attribute
-        plot_original_distributions(attribute_data, output_path, attribute, args.histogram_bins)
+        if not output_path.exists():
+            dataset = utilities.load_dataset(dataset_path=args.dataset_path,
+                                             sequence_length=args.sequence_length,
+                                             attribute=attribute,
+                                             batch_size=args.batch_size,
+                                             parse_sequence_feature=False)
+            attribute_data = []
+            for batch in dataset:
+                attribute_data.append(batch.numpy())
+            attribute_data = np.concatenate(attribute_data, axis=0)
+            plot_original_distributions(attribute_data, output_path, attribute, args.histogram_bins)
 
 
 def plot_original_distributions(data,
@@ -125,7 +176,6 @@ def plot_pt_distribution(data,
                          output_path: Path,
                          power_transform_id: str,
                          lmbda: float,
-                         kl_div: float,
                          attribute: str,
                          histogram_bins: List[int]):
     histograms_output_path = output_path / "histograms"
@@ -133,24 +183,39 @@ def plot_pt_distribution(data,
     pt_title = power_transform_id
     attr_title = attribute.replace("_", " ").capitalize()
     for bins in histogram_bins:
-        filename = (f'{str(histograms_output_path)}/histogram_{power_transform_id.lower()}_{attribute}_'
-                    f'lambda_{lmbda:.2f}_kld_{kl_div:.2f}_bins_{bins}.png')
+        filename = (f'{str(histograms_output_path)}/histogram_{power_transform_id.lower()}_{attribute}'
+                    f'_lambda_{lmbda:.2f}_bins_{bins}.png')
         plt.hist(data, bins=bins, color='blue', alpha=0.7)
         plt.suptitle(f'{pt_title} - {attr_title}')
-        plt.title(r'$\lambda$ = ' + f'{lmbda:.2f} - KLD = {kl_div:.2f} - Bins = {bins}')
+        plt.title(r'$\lambda$ = '+ f'{lmbda:.2f} - Bins = {bins}')
         plt.grid(linestyle=':')
         plt.savefig(filename, format='png', dpi=300)
         plt.close()
 
 
-def plot_kld_lambda_fn(lambds, klds, output_path: Path, power_transform_id: str, attribute: str):
+def plot_idx_lambda_fn(lambds,
+                       kurtosis_idx,
+                       negentropy_naive_idx,
+                       negentropy_exp_idx,
+                       negentropy_cosh_idx,
+                       output_path: Path,
+                       power_transform_id: str,
+                       attribute: str):
     pt_title = power_transform_id
     attr_title = attribute.replace("_", " ").capitalize()
-    filename = f'{str(output_path)}/kld_vs_lmbda_plot_{power_transform_id.lower()}_{attribute}.png'
-    plt.plot(lambds, klds)
+    filename = f'{str(output_path)}/idx_vs_lmbda_plot_{power_transform_id.lower()}_{attribute}.png'
+    norm_kurtosis_idx = kurtosis_idx / np.max(kurtosis_idx)
+    plt.plot(lambds, norm_kurtosis_idx, label="kurtosis", color='red', marker="o")
+    norm_negentropy_naive_idx = negentropy_naive_idx / np.max(negentropy_naive_idx)
+    plt.plot(lambds, norm_negentropy_naive_idx, label="neg-naive", color='green', marker="o")
+    norm_negentropy_exp_idx = negentropy_exp_idx / np.max(negentropy_exp_idx)
+    plt.plot(lambds, norm_negentropy_exp_idx, label="neg-exp", color='blue', marker="o")
+    norm_negentropy_cosh_idx = negentropy_cosh_idx / np.max(negentropy_cosh_idx)
+    plt.plot(lambds, norm_negentropy_cosh_idx, label="neg-cosh", color='purple', marker="o")
     plt.title(f'{pt_title} - {attr_title}')
+    plt.legend()
     plt.xlabel(r'$\lambda$')
-    plt.ylabel(r'KLD($\lambda$)')
+    plt.ylabel(r'idx($\lambda$)')
     plt.grid(linestyle=':')
     plt.savefig(filename, format='png', dpi=300)
     plt.close()
@@ -178,10 +243,15 @@ if __name__ == '__main__':
                         default=2.0, required=False, type=float)
     parser.add_argument('--lambda-step', nargs='+', help='Increment step for lambda at each iteration.',
                         default=0.25, required=False, type=float)
+    parser.add_argument('--seed', help='Seed for random initializers.', required=False, type=int)
     parser.add_argument('--logging-level', help='Set the logging level.', default="INFO", required=False,
                         choices=["CRITICAL", "ERROR", "WARNING", "INFO"])
     os.environ["KERAS_BACKEND"] = "tensorflow"
     vargs = parser.parse_args()
+    if vargs.seed:
+        keras.utils.set_random_seed(vargs.seed)
+        np.random.seed(vargs.seed)
+        tf.config.experimental.enable_op_determinism()
     logging.getLogger().setLevel(vargs.logging_level)
     test_original_distributions(vargs)
     test_power_transforms(vargs)

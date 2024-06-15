@@ -39,8 +39,8 @@ def test_model_regularization(args):
         non_reg_dim_data = latent_codes[:, non_regularized_dimension]
 
         # Regularization for encoded sequences
-        enc_reg_corr_mat = np.corrcoef(reg_dim_data, batch_norm_sequences_attributes)
-        enc_non_reg_corr_mat = np.corrcoef(non_reg_dim_data, batch_norm_sequences_attributes)
+        enc_reg_corr_mat = np.corrcoef(reg_dim_data, input_sequences_attributes[:, 0])
+        enc_non_reg_corr_mat = np.corrcoef(non_reg_dim_data, input_sequences_attributes[:, 0])
         regularization_scatter_plot(
             output_path=str(output_dir/"encoded_sequences_reg_latent_space.png"),
             title="Latent distribution of encoded sequences",
@@ -48,7 +48,7 @@ def test_model_regularization(args):
             reg_dim_idx=args.regularized_dimension,
             non_reg_dim_data=non_reg_dim_data,
             non_reg_dim_idx=non_regularized_dimension,
-            attributes=batch_norm_sequences_attributes,
+            attributes=input_sequences_attributes[:, 0],
             attribute_name=attribute,
             colorbar=True,
             norm=colors.PowerNorm(gamma=0.5)

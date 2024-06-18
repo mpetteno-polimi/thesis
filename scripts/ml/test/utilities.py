@@ -2,6 +2,7 @@ import argparse
 import functools
 
 import keras
+import numpy as np
 import tensorflow as tf
 from resolv_mir.note_sequence.attributes import compute_attribute
 from resolv_mir.note_sequence.representations.sequence import HOLD_NOTE_SYMBOL
@@ -22,12 +23,24 @@ def compute_sequences_attributes(decoded_sequences, attribute_name: str, sequenc
     return decoded_ns_attributes, hold_note_start_seq_count
 
 
+def load_flat_dataset(dataset_path: str,
+                      sequence_length: int,
+                      attribute: str,
+                      batch_size: int,
+                      parse_sequence_feature: bool = True):
+    dataset = load_dataset(dataset_path=dataset_path,
+                           sequence_length=sequence_length,
+                           attribute=attribute,
+                           batch_size=batch_size,
+                           parse_sequence_feature=parse_sequence_feature)
+    return np.concatenate([batch.numpy() for batch in dataset], axis=0)
+
+
 def load_dataset(dataset_path: str,
                  sequence_length: int,
                  attribute: str,
                  batch_size: int,
                  parse_sequence_feature: bool = True):
-
     def map_fn(ctx, seq):
         # Since there may be 0 valued attributes, add an epsilon to everything in order to avoid problems with the
         # BoxCox Transform computation

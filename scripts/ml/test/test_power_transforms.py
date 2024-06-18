@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from keras import ops as k_ops
 from resolv_ml.utilities.distributions.power_transforms import BoxCox, YeoJohnson
-from scipy.stats import kurtosis
+from scipy.stats import boxcox, yeojohnson, kurtosis
 
 import utilities
 
@@ -53,8 +53,9 @@ def test_power_transforms(args):
                 negentropy_exp_idx = []
                 negentropy_cosh_idx = []
                 for lmbda in lambda_range:
-                    logging.info(f"Evaluating {power_transform_id} power transform with lambda {lmbda:.2f} for attribute "
-                                 f"'{attribute}'...")
+                    logging.info(
+                        f"Evaluating {power_transform_id} power transform with lambda {lmbda:.2f} for attribute "
+                        f"'{attribute}'...")
                     # Create PowerTransform model
                     pt_model = PowerTransformModel(power_transform_id, lmbda)
                     pt_model.trainable = False
@@ -105,9 +106,11 @@ def test_power_transforms(args):
                 logging.info(f"Saving Negentropy naive and lambda range to numpy file "
                              f"{numpy_negentropy_naive_filename}....")
                 np.save(numpy_output_path / numpy_negentropy_naive_filename, [lambda_range, negentropy_naive_idx])
-                logging.info(f"Saving Negentropy exp and lambda range to numpy file {numpy_negentropy_exp_filename}....")
+                logging.info(
+                    f"Saving Negentropy exp and lambda range to numpy file {numpy_negentropy_exp_filename}....")
                 np.save(numpy_output_path / numpy_negentropy_exp_filename, [lambda_range, negentropy_exp_idx])
-                logging.info(f"Saving Negentropy cosh and lambda range to numpy file {numpy_negentropy_cosh_filename}....")
+                logging.info(
+                    f"Saving Negentropy cosh and lambda range to numpy file {numpy_negentropy_cosh_filename}....")
                 np.save(numpy_output_path / numpy_negentropy_cosh_filename, [lambda_range, negentropy_cosh_idx])
             else:
                 kurtosis_idx = np.load(numpy_output_path / numpy_kurt_filename)
@@ -117,6 +120,16 @@ def test_power_transforms(args):
                 negentropy_naive_idx = np.load(numpy_output_path / numpy_negentropy_naive_filename)[1][indexes]
                 negentropy_exp_idx = np.load(numpy_output_path / numpy_negentropy_exp_filename)[1][indexes]
                 negentropy_cosh_idx = np.load(numpy_output_path / numpy_negentropy_cosh_filename)[1][indexes]
+            # Logging minimum values
+            logging.info(f"Minimum values:\n"
+                         f"Kurtosis: {np.min(np.abs(kurtosis_idx)):.8f} - "
+                         f"Lambda: {lambda_range[np.argmin(np.abs(kurtosis_idx))]}\n"
+                         f"Negentropy Naive: {np.min(negentropy_naive_idx):.8f} - "
+                         f"Lambda: {lambda_range[np.argmin(negentropy_naive_idx)]}\n"
+                         f"Negentropy Exp: {np.min(negentropy_exp_idx):.8f} - "
+                         f"Lambda: {lambda_range[np.argmin(negentropy_exp_idx)]}\n"
+                         f"Negentropy Cosh: {np.min(negentropy_cosh_idx):.8f} - "
+                         f"Lambda: {lambda_range[np.argmin(negentropy_cosh_idx)]}")
             # Plot indexes as a function of lambda
             logging.info(f"Plotting kurtosis and negentropy as a function of lambda...")
             plot_idx_lambda_fn(lambda_range,
@@ -127,6 +140,21 @@ def test_power_transforms(args):
                                output_path,
                                power_transform_id,
                                attribute)
+
+
+def estimate_llm_pt_lambda(args, attribute: str, power_transform_id: str):
+    attribute_data = utilities.load_flat_dataset(dataset_path=args.dataset_path,
+                                                 sequence_length=args.sequence_length,
+                                                 attribute=attribute,
+                                                 batch_size=args.batch_size,
+                                                 parse_sequence_feature=False)
+    if power_transform_id == 'box-cox':
+        y, lambda_llf = boxcox(attribute_data, lmbda=None)
+    elif power_transform_id == 'yeo-johnson':
+        y, lambda_llf = yeojohnson(attribute_data, lmbda=None)
+    else:
+        raise ValueError(f'Unknown pt_id: {power_transform_id}')
+    return y, lambda_llf
 
 
 def negentropy_approx_naive(x):
@@ -152,7 +180,9 @@ def test_original_distributions(args):
             attribute_data = []
             for batch in dataset:
                 attribute_data.append(batch.numpy())
-            attribute_data = np.concatenate(attribute_data, axis=0)
+            attribute_data = np.concatenate(attribute_data, axis=0).squeeze()
+            zero_count = np.count_nonzero(np.where(np.isclose(attribute_data, 0)))
+            logging.info(f"Original zero elements: {zero_count}/{len(attribute_data)}")
             plot_original_distributions(attribute_data, output_path, attribute, args.histogram_bins)
 
 
@@ -187,7 +217,7 @@ def plot_pt_distribution(data,
                     f'_lambda_{lmbda:.2f}_bins_{bins}.png')
         plt.hist(data, bins=bins, color='blue', alpha=0.7)
         plt.suptitle(f'{pt_title} - {attr_title}')
-        plt.title(r'$\lambda$ = '+ f'{lmbda:.2f} - Bins = {bins}')
+        plt.title(r'$\lambda$ = ' + f'{lmbda:.2f} - Bins = {bins}')
         plt.grid(linestyle=':')
         plt.savefig(filename, format='png', dpi=300)
         plt.close()
@@ -201,17 +231,22 @@ def plot_idx_lambda_fn(lambds,
                        output_path: Path,
                        power_transform_id: str,
                        attribute: str):
+    def normalize_idx(idx):
+        max_idx = np.max(idx)
+        norm_idx = idx / max_idx if np.isfinite(max_idx) else idx
+        return norm_idx
+
     pt_title = power_transform_id
     attr_title = attribute.replace("_", " ").capitalize()
     filename = f'{str(output_path)}/idx_vs_lmbda_plot_{power_transform_id.lower()}_{attribute}.png'
-    norm_kurtosis_idx = kurtosis_idx / np.max(kurtosis_idx)
-    plt.plot(lambds, norm_kurtosis_idx, label="kurtosis", color='red', marker="o")
-    norm_negentropy_naive_idx = negentropy_naive_idx / np.max(negentropy_naive_idx)
-    plt.plot(lambds, norm_negentropy_naive_idx, label="neg-naive", color='green', marker="o")
-    norm_negentropy_exp_idx = negentropy_exp_idx / np.max(negentropy_exp_idx)
-    plt.plot(lambds, norm_negentropy_exp_idx, label="neg-exp", color='blue', marker="o")
-    norm_negentropy_cosh_idx = negentropy_cosh_idx / np.max(negentropy_cosh_idx)
-    plt.plot(lambds, norm_negentropy_cosh_idx, label="neg-cosh", color='purple', marker="o")
+    norm_kurtosis_idx = normalize_idx(kurtosis_idx)
+    plt.plot(lambds, np.abs(norm_kurtosis_idx), label="kurtosis", color='red')
+    norm_negentropy_naive_idx = normalize_idx(negentropy_naive_idx)
+    plt.plot(lambds, norm_negentropy_naive_idx, label="neg-naive", color='green')
+    norm_negentropy_exp_idx = normalize_idx(negentropy_exp_idx)
+    plt.plot(lambds, norm_negentropy_exp_idx, label="neg-exp", color='blue')
+    norm_negentropy_cosh_idx = normalize_idx(negentropy_cosh_idx)
+    plt.plot(lambds, norm_negentropy_cosh_idx, label="neg-cosh", color='purple')
     plt.title(f'{pt_title} - {attr_title}')
     plt.legend()
     plt.xlabel(r'$\lambda$')
@@ -254,4 +289,4 @@ if __name__ == '__main__':
         tf.config.experimental.enable_op_determinism()
     logging.getLogger().setLevel(vargs.logging_level)
     test_original_distributions(vargs)
-    test_power_transforms(vargs)
+    # test_power_transforms(vargs)

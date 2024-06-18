@@ -21,9 +21,12 @@ if __name__ == '__main__':
     y_kld_scheduler = [kld_scheduler(step) for step in x]
 
     # Attribute Regularizer - Beta
-    attr_reg_schedule_type = "constant"
+    attr_reg_schedule_type = "exponential"
     attr_reg_schedule_config = {
-        "value": 1
+        "rate": 0.9999,
+        "min_value": 0.1,
+        "max_value": 1,
+        "decay": True
     }
     attr_reg_scheduler = get_scheduler(attr_reg_schedule_type, attr_reg_schedule_config)
     y_attr_reg_scheduler = [attr_reg_scheduler(step) for step in x]

@@ -15,6 +15,8 @@ import utilities
 
 def test_model_generation(args):
     for attribute in args.attributes:
+        output_dir = Path(args.output_path) / Path(args.model_path).stem / "plots"
+        output_dir.mkdir(parents=True, exist_ok=True)
         model = keras.saving.load_model(args.model_path, compile=False)
         model.compile(run_eagerly=True)
         # sample N = dataset_cardinality instances from model's prior
@@ -36,12 +38,18 @@ def test_model_generation(args):
         generated_sequences = model.decode(inputs=(latent_codes, keras.ops.convert_to_tensor(args.sequence_length)))
         generated_sequences_attrs, hold_note_start_seq_count = utilities.compute_sequences_attributes(
             generated_sequences.numpy(), attribute, args.sequence_length)
+        # plot generated sequences attributes histogram
+        filename = f'{str(output_dir)}/histogram_generated_{attribute}_{args.histogram_bins}_bins.png'
+        logging.info(f"Plotting generated histogram with {args.histogram_bins} bins for attribute {attribute}...")
+        plt.hist(generated_sequences_attrs, bins=args.histogram_bins, color='blue', alpha=0.7)
+        plt.title(f'{attribute.replace("_", " ").capitalize()} - {args.histogram_bins} bins')
+        plt.grid(linestyle=':')
+        plt.savefig(filename, format='png', dpi=300)
+        plt.close()
         # compute Pearson coefficient and plot graph with the best linear fitting model
         reg_dim_data = latent_codes[:, args.regularized_dimension]
         correlation_matrix = np.corrcoef(reg_dim_data, generated_sequences_attrs)
         pearson_coefficient = correlation_matrix[0, 1]
-        output_dir = Path(args.output_path) / "plots"
-        output_dir.mkdir(parents=True, exist_ok=True)
         slope, intercept = plot_reg_dim_vs_attribute(output_path=str(output_dir / 'reg_dim_vs_attribute.png'),
                                                      title="",
                                                      reg_dim_data=reg_dim_data,
@@ -55,7 +63,8 @@ def test_model_generation(args):
         for idx, generated_sequence in enumerate(keras.ops.take(generated_sequences, indices=random_idxes, axis=0)):
             generated_note_sequence = representation.to_canonical_format(generated_sequence, attributes=None)
             filename = f"midi/{attribute}_{latent_codes[random_idxes[idx], args.regularized_dimension]:.2f}.midi"
-            midi_io.note_sequence_to_midi_file(generated_note_sequence, Path(args.output_path)/filename)
+            midi_io.note_sequence_to_midi_file(generated_note_sequence,
+                                               Path(args.output_path) / Path(args.model_path).stem / filename)
 
         logging.info(f"Best linear model fit parameters. Slope: {slope:.2f}, Intercept: {intercept:.2f}")
         logging.info(f"Pearson coefficient {pearson_coefficient:.2f}.")
@@ -87,6 +96,8 @@ if __name__ == '__main__':
                              'values for the given attribute in the given test dataset.')
     parser.add_argument('--num-midi-to-save', help='Number of generated sequences to save as MIDI file. '
                                                    'The N sequences will be chosen randomly.', required=True, type=int)
+    parser.add_argument('--histogram-bins', help='Number of bins for the histogram.', default=120, required=False,
+                        type=int)
     os.environ["KERAS_BACKEND"] = "tensorflow"
     vargs = parser.parse_args()
     if vargs.seed:

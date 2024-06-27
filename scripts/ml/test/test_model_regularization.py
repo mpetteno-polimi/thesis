@@ -12,7 +12,7 @@ import utilities
 
 
 def test_model_regularization(args):
-    output_dir = Path(args.output_path) / "plots"
+    output_dir = Path(args.output_path) / Path(args.model_path).stem / "plots"
     output_dir.mkdir(parents=True, exist_ok=True)
     for attribute in args.attributes:
         dataset = utilities.load_dataset(dataset_path=args.test_dataset_path,
@@ -24,7 +24,6 @@ def test_model_regularization(args):
         model.compile(run_eagerly=True)
         (decoded_sequences, latent_codes, input_sequences, input_sequences_attributes,
             batch_norm_sequences_attributes) = model.predict(dataset, steps=args.dataset_cardinality//args.batch_size)
-        batch_norm_sequences_attributes = batch_norm_sequences_attributes[:, 0]
 
         if not args.non_regularized_dimension:
             correlation_matrix = np.corrcoef(latent_codes, rowvar=False)

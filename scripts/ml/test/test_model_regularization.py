@@ -19,6 +19,7 @@ def test_model_regularization(args):
                                          sequence_length=args.sequence_length,
                                          attribute=attribute,
                                          batch_size=args.batch_size,
+                                         shift=keras.backend.epsilon(),
                                          parse_sequence_feature=True)
         model = keras.saving.load_model(args.model_path, compile=False)
         model.compile(run_eagerly=True)

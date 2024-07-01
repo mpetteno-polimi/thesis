@@ -4,7 +4,7 @@ import json
 import logging
 import math
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 
 import keras
 import tensorflow as tf
@@ -58,7 +58,8 @@ def get_model(model_config_path: str,
               trainer_config_path: str,
               hierarchical_decoder: bool = False,
               attribute_proc_layer: keras.Layer = None,
-              attribute_reg_layer: AttributeRegularizer = None) -> VAE:
+              attribute_regularizers: Dict[str, AttributeRegularizer] = None,
+              inference_layer: keras.Layer = None) -> VAE:
     with open(model_config_path) as file:
         model_config = json.load(file)
         schedulers_config = model_config["schedulers"]
@@ -119,13 +120,14 @@ def get_model(model_config_path: str,
             )
         )
 
-    if attribute_reg_layer:
+    if attribute_regularizers:
         return AttributeRegularizedVAE(
             z_size=model_config["z_size"],
             input_processing_layer=encoder,
             generative_layer=decoder,
             attribute_processing_layer=attribute_proc_layer,
-            attribute_regularization_layer=attribute_reg_layer,
+            attribute_regularizers=attribute_regularizers,
+            inference_layer=inference_layer,
             free_bits=model_config["free_bits"],
             div_beta_scheduler=get_scheduler(
                 schedule_type=schedulers_config["kl_div_beta"]["type"],

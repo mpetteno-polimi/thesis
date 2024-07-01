@@ -8,7 +8,6 @@ Usage example:
         --val-dataset-config-path=./scripts/ml/training/config/val_dataset.json \
         --attribute="contour" \
         --reg-dim=0 \
-        --gamma=1.0 \
         --scale-factor=1.0 \
         --gpus=0
 
@@ -22,7 +21,6 @@ from resolv_ml.utilities.regularizers.attribute import SignAttributeRegularizer
 from resolv_ml.utilities.schedulers import get_scheduler
 
 from scripts.ml.training import utilities
-
 
 if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train AR-VAE model with sign attribute regularization.")
@@ -54,15 +52,17 @@ if __name__ == '__main__':
             model_config_path=args.model_config_path,
             trainer_config_path=args.trainer_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
-            attribute_reg_layer=SignAttributeRegularizer(
-                beta_scheduler=get_scheduler(
-                    schedule_type=schedulers_config["attr_reg_gamma"]["type"],
-                    schedule_config=schedulers_config["attr_reg_gamma"]["config"]
-                ),
-                loss_fn=keras.losses.MeanAbsoluteError(),
-                regularization_dimension=args.reg_dim,
-                scale_factor=args.scale_factor
-            )
+            attribute_regularizers={
+                "sign_ar": SignAttributeRegularizer(
+                    weight_scheduler=get_scheduler(
+                        schedule_type=schedulers_config["attr_reg_gamma"]["type"],
+                        schedule_config=schedulers_config["attr_reg_gamma"]["config"]
+                    ),
+                    loss_fn=keras.losses.MeanAbsoluteError(),
+                    regularization_dimension=args.reg_dim,
+                    scale_factor=args.scale_factor
+                )
+            }
         )
         vae.build(input_shape)
         trainer = utilities.get_trainer(model=vae, trainer_config_path=args.trainer_config_path)

@@ -7,4 +7,4 @@ dependencies:
   - pip
   - pip:
       - resolv-pipelines[tensorflow] @ git+ssh://git@github.com/resolv-libs/resolv-pipelines.git@main
-      - git+ssh://git@github.com/resolv-libs/resolv-ml.git@main
+      - git+ssh://git@github.com/resolv-libs/resolv-ml.git@normalizing-flows

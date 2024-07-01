@@ -9,55 +9,46 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from keras import ops as k_ops
-from resolv_ml.utilities.distributions.power_transforms import BoxCox, YeoJohnson
-from scipy.stats import boxcox, yeojohnson, kurtosis
+from resolv_ml.utilities.bijectors.power_transform import BoxCox
+from scipy.stats import boxcox, kurtosis
 
 import utilities
 
 
-def test_power_transforms(args):
-    class PowerTransformModel(keras.Model):
-
-        def __init__(self, pt_id: str, lambd: int):
-            super(PowerTransformModel, self).__init__()
-            if pt_id == 'box-cox':
-                self._pt_layer = BoxCox(lambda_init=lambd, trainable=False)
-            elif pt_id == 'yeo-johnson':
-                self._pt_layer = YeoJohnson(lambda_init=lambd, trainable=False)
-            else:
-                raise ValueError(f'Unknown pt_id: {pt_id}')
-            self.name = self._pt_layer.name
-
-        def call(self, inputs):
-            return self._pt_layer(inputs)
-
+def test_power_transform(args):
     for attribute in args.attributes:
-        for power_transform_id in args.power_transform_ids:
-            logging.info(f"Evaluating {power_transform_id} power transform for attribute '{attribute}'...")
-            output_path = Path(args.histogram_output_path) / "power-transforms" / power_transform_id.lower() / attribute
-            if not output_path.exists():
-                numpy_output_path = output_path / "numpy"
+        logging.info(f"Evaluating power transform for attribute '{attribute}'...")
+        main_output_path = Path(args.histogram_output_path) / "power-transform" / attribute
+        if not main_output_path.exists():
+            # Load dataset
+            dataset = utilities.load_flat_dataset(dataset_path=args.dataset_path,
+                                                  sequence_length=args.sequence_length,
+                                                  attribute=attribute,
+                                                  batch_size=args.batch_size,
+                                                  parse_sequence_feature=False)[:, 0]
+            for s in keras.ops.arange(args.shift_min, args.shift_max, args.shift_step):
+                output_path = main_output_path / f"shift_{s:.2f}"
                 output_path.mkdir(parents=True, exist_ok=True)
+                numpy_output_path = output_path / "numpy"
                 numpy_output_path.mkdir(parents=True, exist_ok=True)
-                _, llm_lmbda = estimate_llm_pt_lambda(args, attribute, power_transform_id)
-                logging.info(f"LLM power transform {power_transform_id} best lambda value for attribute '{attribute}'"
-                             f" is: {llm_lmbda:.5f}'")
-                # Create PowerTransform model
-                pt_model = PowerTransformModel(power_transform_id, llm_lmbda)
-                pt_model.trainable = False
-                pt_model.compile()
-                # Load dataset
-                dataset = utilities.load_dataset(dataset_path=args.dataset_path,
-                                                 sequence_length=args.sequence_length,
-                                                 attribute=attribute,
-                                                 batch_size=args.batch_size,
-                                                 parse_sequence_feature=False)
+                s_epsilon = s + 1e-5  # add epsilon to shift in order to avoid zero input values for BoxCox
+                # Compute best power parameter for BoxCox using log-likelihood maximization
+                _, llm_lmbda = boxcox(dataset + s_epsilon, lmbda=None)
+                logging.info(f"LLM power transform best power value for attribute '{attribute}' shifted by {s:.2f} "
+                             f"is: {llm_lmbda:.5f}'")
+                # Create PowerTransform bijector
+                power_transform_bij = BoxCox(
+                    power=llm_lmbda,
+                    shift=0.,
+                    power_trainable=False,
+                    shift_trainable=False
+                )
                 # Compute PowerTransform
-                pt_out = pt_model.predict(dataset)
+                pt_out = power_transform_bij.inverse(dataset + s_epsilon)
                 pt_out_norm = (pt_out - k_ops.mean(pt_out)) / k_ops.std(pt_out)
                 pt_out_norm = pt_out_norm.numpy()
                 # Compute Kurtosis
-                kurt = kurtosis(pt_out_norm)[0]
+                kurt = kurtosis(pt_out_norm)
                 logging.info(f"Kurtosis index is {kurt:.5f}.")
                 # Compute Negentropy Naive
                 negentropy_naive = negentropy_approx_naive(pt_out_norm)
@@ -73,19 +64,18 @@ def test_power_transforms(args):
                 plot_pt_distributions(
                     data=pt_out_norm,
                     output_path=output_path,
-                    power_transform_id=power_transform_id,
-                    lmbda=llm_lmbda,
+                    power=llm_lmbda,
+                    shift=s,
                     attribute=attribute,
                     histogram_bins=args.histogram_bins
                 )
                 # Save output distributions
                 logging.info(f"Saving output distributions to numpy file...")
-                numpy_pt_out_filename = (f'pt_out_norm_{power_transform_id.lower()}_{attribute}_lambda_'
-                                         f',{llm_lmbda:.2f}.npy')
+                numpy_pt_out_filename = f'pt_out_norm_{attribute}_power_{llm_lmbda:.2f}_shift_{s:.2f}.npy'
                 np.save(numpy_output_path / numpy_pt_out_filename, pt_out_norm)
-            else:
-                logging.info(f"Power transform distribution for attribute '{attribute}' already exists."
-                             f"Remove the folder {output_path} to override it.")
+        else:
+            logging.info(f"Power transform distribution for attribute '{attribute}' already exists."
+                         f"Remove the folder {main_output_path} to override it.")
 
 
 def test_original_distributions(args):
@@ -106,24 +96,8 @@ def test_original_distributions(args):
                          f"Remove the folder {output_path} to override it.")
 
 
-def estimate_llm_pt_lambda(args, attribute: str, power_transform_id: str):
-    attribute_data = utilities.load_flat_dataset(dataset_path=args.dataset_path,
-                                                 sequence_length=args.sequence_length,
-                                                 attribute=attribute,
-                                                 batch_size=args.batch_size,
-                                                 parse_sequence_feature=False)
-    attribute_data = attribute_data.squeeze()
-    if power_transform_id == 'box-cox':
-        y, lambda_llf = boxcox(attribute_data, lmbda=None)
-    elif power_transform_id == 'yeo-johnson':
-        y, lambda_llf = yeojohnson(attribute_data, lmbda=None)
-    else:
-        raise ValueError(f'Unknown pt_id: {power_transform_id}')
-    return y, lambda_llf
-
-
 def negentropy_approx_naive(x):
-    return (1 / 12) * np.mean(x ** 3) ** 2 + (1 / 48) * kurtosis(x)[0] ** 2
+    return (1 / 12) * np.mean(x ** 3) ** 2 + (1 / 48) * kurtosis(x) ** 2
 
 
 def negentropy_approx_fn(x, fn: Callable):
@@ -150,20 +124,19 @@ def plot_original_distributions(data,
 
 def plot_pt_distributions(data,
                           output_path: Path,
-                          power_transform_id: str,
-                          lmbda: float,
+                          power: float,
+                          shift: float,
                           attribute: str,
                           histogram_bins: List[int]):
     histograms_output_path = output_path / "histograms"
     histograms_output_path.mkdir(parents=True, exist_ok=True)
-    pt_title = power_transform_id
     attr_title = attribute.replace("_", " ").capitalize()
     for bins in histogram_bins:
-        filename = (f'{str(histograms_output_path)}/histogram_{power_transform_id.lower()}_{attribute}'
-                    f'_lambda_{lmbda:.2f}_bins_{bins}.png')
+        filename = (f'{str(histograms_output_path)}/histogram_{attribute}_power_{power:.2f}_shift_{shift:.2f}'
+                    f'_bins_{bins}.png')
         plt.hist(data, bins=bins, color='blue', alpha=0.7)
-        plt.suptitle(f'{pt_title} - {attr_title}')
-        plt.title(r'$\lambda$ = ' + f'{lmbda:.2f} - Bins = {bins}')
+        plt.suptitle(f'BoxCox - {attr_title}')
+        plt.title(r'$\lambda$ = ' + f'{power:.2f} - {shift:.2f} - Bins = {bins}')
         plt.grid(linestyle=':')
         plt.savefig(filename, format='png', dpi=300)
         plt.close()
@@ -185,6 +158,15 @@ if __name__ == '__main__':
                         choices=[32, 64, 128, 256, 512])
     parser.add_argument('--power-transform-ids', help="IDs of power transforms to evaluate.", nargs='+',
                         choices=["box-cox", "yeo-johnson"], default=["box-cox", "yeo-johnson"], required=False)
+    parser.add_argument('--shift-min', help='Start value for the grid search range of the shift parameter for the '
+                                            'BoxCox power transform.',
+                        default=0., required=False, type=float)
+    parser.add_argument('--shift-max', help='Stop value for the grid search range of the shift parameter for the '
+                                            'BoxCox power transform.',
+                        default=3., required=False, type=float)
+    parser.add_argument('--shift-step', help='Increment step for the grid search range of the shift parameter for the '
+                                             'BoxCox power transform.',
+                        default=0.25, required=False, type=float)
     parser.add_argument('--seed', help='Seed for random initializers.', required=False, type=int)
     parser.add_argument('--logging-level', help='Set the logging level.', default="INFO", required=False,
                         choices=["CRITICAL", "ERROR", "WARNING", "INFO"])
@@ -196,4 +178,4 @@ if __name__ == '__main__':
         tf.config.experimental.enable_op_determinism()
     logging.getLogger().setLevel(vargs.logging_level)
     test_original_distributions(vargs)
-    test_power_transforms(vargs)
+    test_power_transform(vargs)

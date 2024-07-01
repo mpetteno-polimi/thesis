@@ -8,8 +8,10 @@ Usage example:
         --val-dataset-config-path=./scripts/ml/training/config/val_dataset.json \
         --attribute="contour" \
         --reg-dim=0 \
-        --power-transform="box-cox" \
-        --lambda-init=0.0 \
+        --power-init=0.0 \
+        --power-trainable \
+        --shift-init=0.0 \
+        --shift-trainable \
         --gpus=0
 
 """
@@ -18,21 +20,25 @@ import logging
 
 import keras
 from resolv_ml.training.callbacks import LearningRateLoggerCallback
-from resolv_ml.utilities.distributions.power_transforms import BoxCox, YeoJohnson
-from resolv_ml.utilities.regularizers.attribute import DefaultAttributeRegularizer
+from resolv_ml.utilities.bijectors import BatchNormalization, BoxCox
+from resolv_ml.utilities.distributions.inference import NormalizingFlowGaussianInference
+from resolv_ml.utilities.regularizers.attribute import DefaultAttributeRegularizer, NormalizingFlowAttributeRegularizer
 from resolv_ml.utilities.schedulers import get_scheduler
 
 from scripts.ml.training import utilities
-
 
 if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train AR-VAE model with sign attribute regularization.")
     arg_parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
     arg_parser.add_argument('--reg-dim', help='Latent code regularization dimension.', default=0, type=int)
-    arg_parser.add_argument('--power-transform', help='Power transform to use for regularization.', required=True,
-                            choices=['box-cox', 'yeo-johnson'])
-    arg_parser.add_argument('--lambda-init', help='Initial value for the power transform lambda parameter.',
+    arg_parser.add_argument('--power-init', help='Initial value for the power transform\'s power parameter.',
                             default=0.0, type=float)
+    arg_parser.add_argument('--power-trainable', help='Set the power transform\'s power parameter as trainable .',
+                            action="store_true")
+    arg_parser.add_argument('--shift-init', help='Initial value for the power transform\'s shift parameter.',
+                            default=0.0, type=float)
+    arg_parser.add_argument('--shift-trainable', help='Set the power transform\'s shift parameter as trainable .',
+                            action="store_true")
     args = arg_parser.parse_args()
 
     logging.getLogger().setLevel(args.logging_level)
@@ -45,20 +51,6 @@ if __name__ == '__main__':
             trainer_config_path=args.trainer_config_path,
             attribute=args.attribute
         )
-        if args.power_transform == "box-cox":
-            power_transform_layer = BoxCox(
-                lambda_init=args.lambda_init,
-                trainable=False,
-                batch_norm=keras.layers.BatchNormalization(scale=False, center=False)
-            )
-        elif args.power_transform == "yeo-johnson":
-            power_transform_layer = YeoJohnson(
-                lambda_init=args.lambda_init,
-                trainable=False,
-                batch_norm=keras.layers.BatchNormalization(scale=False, center=False)
-            )
-        else:
-            raise ValueError("Power transform must be box-cox or yeo-johnson.")
 
         with open(args.model_config_path) as file:
             model_config = json.load(file)
@@ -71,15 +63,32 @@ if __name__ == '__main__':
             model_config_path=args.model_config_path,
             trainer_config_path=args.trainer_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
-            attribute_proc_layer=power_transform_layer,
-            attribute_reg_layer=DefaultAttributeRegularizer(
-                beta_scheduler=get_scheduler(
-                    schedule_type=schedulers_config["attr_reg_gamma"]["type"],
-                    schedule_config=schedulers_config["attr_reg_gamma"]["config"]
+            attribute_regularizers={
+                "mae_ar": DefaultAttributeRegularizer(
+                    weight_scheduler=get_scheduler(
+                        schedule_type=schedulers_config["attr_reg_gamma"]["type"],
+                        schedule_config=schedulers_config["attr_reg_gamma"]["config"]
+                    ),
+                    loss_fn=keras.losses.MeanAbsoluteError(),
+                    regularization_dimension=args.reg_dim
                 ),
-                loss_fn=keras.losses.MeanAbsoluteError(),
-                regularization_dimension=args.reg_dim,
-                name="pt_attr_regularizer"
+                "nf_ar": NormalizingFlowAttributeRegularizer(
+                    weight_scheduler=get_scheduler(
+                        schedule_type=schedulers_config["nf_reg_csi"]["type"],
+                        schedule_config=schedulers_config["nf_reg_csi"]["config"]
+                    )
+                )
+            },
+            inference_layer=NormalizingFlowGaussianInference(
+                z_size=model_config["z_size"],
+                bijectors=[
+                    BoxCox(power=args.power_init,
+                           shift=args.shift_init,
+                           power_trainable=args.power_trainable,
+                           shift_trainable=args.shift_trainable),
+                    BatchNormalization(scale=False, center=False)
+                ],
+                target_dimension=args.reg_dim,
             )
         )
         vae.build(input_shape)

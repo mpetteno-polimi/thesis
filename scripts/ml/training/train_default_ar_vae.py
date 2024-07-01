@@ -21,7 +21,6 @@ from resolv_ml.utilities.schedulers import get_scheduler
 
 from scripts.ml.training import utilities
 
-
 if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train AR-VAE model with default attribute regularization.")
     arg_parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
@@ -51,14 +50,16 @@ if __name__ == '__main__':
             trainer_config_path=args.trainer_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
             attribute_proc_layer=keras.layers.BatchNormalization(center=False, scale=False),
-            attribute_reg_layer=DefaultAttributeRegularizer(
-                beta_scheduler=get_scheduler(
-                    schedule_type=schedulers_config["attr_reg_gamma"]["type"],
-                    schedule_config=schedulers_config["attr_reg_gamma"]["config"]
-                ),
-                loss_fn=keras.losses.MeanAbsoluteError(),
-                regularization_dimension=args.reg_dim
-            )
+            attribute_regularizers={
+                "mae_ar": DefaultAttributeRegularizer(
+                    weight_scheduler=get_scheduler(
+                        schedule_type=schedulers_config["attr_reg_gamma"]["type"],
+                        schedule_config=schedulers_config["attr_reg_gamma"]["config"]
+                    ),
+                    loss_fn=keras.losses.MeanAbsoluteError(),
+                    regularization_dimension=args.reg_dim
+                )
+            }
         )
         vae.build(input_shape)
         trainer = utilities.get_trainer(model=vae, trainer_config_path=args.trainer_config_path)

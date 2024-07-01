@@ -27,11 +27,13 @@ def load_flat_dataset(dataset_path: str,
                       sequence_length: int,
                       attribute: str,
                       batch_size: int,
+                      shift: float = 0.0,
                       parse_sequence_feature: bool = True):
     dataset = load_dataset(dataset_path=dataset_path,
                            sequence_length=sequence_length,
                            attribute=attribute,
                            batch_size=batch_size,
+                           shift=shift,
                            parse_sequence_feature=parse_sequence_feature)
     return np.concatenate([batch.numpy() for batch in dataset], axis=0)
 
@@ -40,11 +42,10 @@ def load_dataset(dataset_path: str,
                  sequence_length: int,
                  attribute: str,
                  batch_size: int,
+                 shift: float = 0.0,
                  parse_sequence_feature: bool = True):
     def map_fn(ctx, seq):
-        # Since there may be 0 valued attributes, add an epsilon to everything in order to avoid problems with the
-        # BoxCox Transform computation
-        attributes = tf.expand_dims(ctx[attribute] + keras.backend.epsilon(), axis=-1)
+        attributes = tf.expand_dims(ctx[attribute] + shift, axis=-1)
         if parse_sequence_feature:
             input_seq = tf.transpose(seq["pitch_seq"])
             target = input_seq
@@ -69,8 +70,7 @@ def load_dataset(dataset_path: str,
 
 def get_arg_parser(description: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('--model-path', required=True, help='Path to the dataset containing SequenceExample with the '
-                                                            'attributes to evaluate saved in the context.')
+    parser.add_argument('--model-path', required=True, help='Path to the .keras model checkpoint.')
     parser.add_argument('--test-dataset-path', required=True,
                         help='Path to the dataset containing the test SequenceExample.')
     parser.add_argument('--dataset-cardinality', help='Cardinality of the test dataset.', required=True, type=int)

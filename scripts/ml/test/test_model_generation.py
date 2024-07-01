@@ -28,6 +28,7 @@ def test_model_generation(args):
                                              sequence_length=args.sequence_length,
                                              attribute=attribute,
                                              batch_size=args.batch_size,
+                                             shift=0.,
                                              parse_sequence_feature=False)
             attribute_values = np.array([x for batch in dataset for x in batch])
             attr_min_val = np.min(attribute_values)

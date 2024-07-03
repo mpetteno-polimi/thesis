@@ -83,7 +83,7 @@ if __name__ == '__main__':
                 z_size=model_config["z_size"],
                 bijectors=[
                     BoxCox(power=args.power_init,
-                           shift=args.shift_init,
+                           shift=args.shift_init if args.shift_init else keras.backend.epsilon(),
                            power_trainable=args.power_trainable,
                            shift_trainable=args.shift_trainable),
                     BatchNormalization(scale=False, center=False)

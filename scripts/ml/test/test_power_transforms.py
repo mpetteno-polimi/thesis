@@ -42,11 +42,12 @@ def test_power_transform(args):
                              f"is: {llm_lmbda:.5f}'")
                 # Create PowerTransform bijector
                 power_transform_bij = BoxCox(
-                    power=llm_lmbda,
-                    shift=0.,
+                    power_init_value=llm_lmbda,
+                    shift_init_value=0.,
                     power_trainable=False,
                     shift_trainable=False
                 )
+                power_transform_bij.build(dataset.shape)
                 # Compute PowerTransform
                 pt_out = power_transform_bij.inverse(shifted_inputs)
                 pt_out_norm = (pt_out - k_ops.mean(pt_out)) / k_ops.std(pt_out)

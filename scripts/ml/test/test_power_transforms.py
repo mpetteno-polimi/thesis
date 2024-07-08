@@ -10,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 from keras import ops as k_ops
 from resolv_ml.utilities.bijectors.power_transform import BoxCox
+from resolv_mir.note_sequence.attributes import ATTRIBUTE_FN_MAP
 from scipy.stats import boxcox, kurtosis
 
 import utilities
@@ -26,14 +27,17 @@ def test_power_transform(args):
                                                   attribute=attribute,
                                                   batch_size=args.batch_size,
                                                   parse_sequence_feature=False)[:, 0]
-            for s in keras.ops.arange(args.shift_min, args.shift_max, args.shift_step):
+            shifts_grid = [0.] if not args.shift_grid_search \
+                else keras.ops.arange(args.shift_min, args.shift_max, args.shift_step)
+            for s in shifts_grid:
                 output_path = main_output_path / f"shift_{s:.2f}"
                 output_path.mkdir(parents=True, exist_ok=True)
                 numpy_output_path = output_path / "numpy"
                 numpy_output_path.mkdir(parents=True, exist_ok=True)
-                s_epsilon = s + 1e-5  # add epsilon to shift in order to avoid zero input values for BoxCox
+                # add epsilon to shift in order to avoid zero input values for BoxCox
+                shifted_inputs = dataset + s + 1e-5
                 # Compute best power parameter for BoxCox using log-likelihood maximization
-                _, llm_lmbda = boxcox(dataset + s_epsilon, lmbda=None)
+                _, llm_lmbda = boxcox(shifted_inputs, lmbda=None)
                 logging.info(f"LLM power transform best power value for attribute '{attribute}' shifted by {s:.2f} "
                              f"is: {llm_lmbda:.5f}'")
                 # Create PowerTransform bijector
@@ -44,7 +48,7 @@ def test_power_transform(args):
                     shift_trainable=False
                 )
                 # Compute PowerTransform
-                pt_out = power_transform_bij.inverse(dataset + s_epsilon)
+                pt_out = power_transform_bij.inverse(shifted_inputs)
                 pt_out_norm = (pt_out - k_ops.mean(pt_out)) / k_ops.std(pt_out)
                 pt_out_norm = pt_out_norm.numpy()
                 # Compute Kurtosis
@@ -158,6 +162,8 @@ if __name__ == '__main__':
                         choices=[32, 64, 128, 256, 512])
     parser.add_argument('--power-transform-ids', help="IDs of power transforms to evaluate.", nargs='+',
                         choices=["box-cox", "yeo-johnson"], default=["box-cox", "yeo-johnson"], required=False)
+    parser.add_argument('--shift-grid-search', help='Do a grid search for the power transform shift parameter.',
+                        action="store_true")
     parser.add_argument('--shift-min', help='Start value for the grid search range of the shift parameter for the '
                                             'BoxCox power transform.',
                         default=0., required=False, type=float)
@@ -172,6 +178,8 @@ if __name__ == '__main__':
                         choices=["CRITICAL", "ERROR", "WARNING", "INFO"])
     os.environ["KERAS_BACKEND"] = "tensorflow"
     vargs = parser.parse_args()
+    if vargs.attributes[0] == "all":
+        vargs.attributes = ATTRIBUTE_FN_MAP.keys()
     if vargs.seed:
         keras.utils.set_random_seed(vargs.seed)
         np.random.seed(vargs.seed)

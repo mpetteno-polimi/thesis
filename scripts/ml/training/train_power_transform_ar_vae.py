@@ -9,6 +9,8 @@ Usage example:
         --attribute="contour" \
         --reg-dim=0 \
         --power-init=0.0 \
+        --power-min=-2.0 \
+        --power-max=2.0 \
         --power-trainable \
         --shift-init=0.0 \
         --shift-trainable \
@@ -19,10 +21,10 @@ import json
 import logging
 
 import keras
+from resolv_ml.models.dlvm.normalizing_flows.base import NormalizingFlow
 from resolv_ml.training.callbacks import LearningRateLoggerCallback
 from resolv_ml.utilities.bijectors import BatchNormalization, BoxCox
-from resolv_ml.utilities.distributions.inference import NormalizingFlowGaussianInference
-from resolv_ml.utilities.regularizers.attribute import DefaultAttributeRegularizer, NormalizingFlowAttributeRegularizer
+from resolv_ml.utilities.regularizers.attribute import NormalizingFlowAttributeRegularizer
 from resolv_ml.utilities.schedulers import get_scheduler
 
 from scripts.ml.training import utilities
@@ -33,11 +35,17 @@ if __name__ == '__main__':
     arg_parser.add_argument('--reg-dim', help='Latent code regularization dimension.', default=0, type=int)
     arg_parser.add_argument('--power-init', help='Initial value for the power transform\'s power parameter.',
                             default=0.0, type=float)
+    arg_parser.add_argument('--power-min', help='Minimum value for the power transform\'s power parameter.',
+                            default=-2.0, type=float)
+    arg_parser.add_argument('--power-max', help='Maximum value for the power transform\'s power parameter.',
+                            default=2.0, type=float)
     arg_parser.add_argument('--power-trainable', help='Set the power transform\'s power parameter as trainable .',
                             action="store_true")
     arg_parser.add_argument('--shift-init', help='Initial value for the power transform\'s shift parameter.',
                             default=0.0, type=float)
     arg_parser.add_argument('--shift-trainable', help='Set the power transform\'s shift parameter as trainable .',
+                            action="store_true")
+    arg_parser.add_argument('--add-nf-loss', help='Set the power transform\'s shift parameter as trainable .',
                             action="store_true")
     args = arg_parser.parse_args()
 
@@ -64,32 +72,31 @@ if __name__ == '__main__':
             trainer_config_path=args.trainer_config_path,
             hierarchical_decoder=args.hierarchical_decoder,
             attribute_regularizers={
-                "mae_ar": DefaultAttributeRegularizer(
-                    weight_scheduler=get_scheduler(
+                "nf_ar": NormalizingFlowAttributeRegularizer(
+                    normalizing_flow=NormalizingFlow(
+                        bijectors=[
+                            BoxCox(power_init_value=args.power_init,
+                                   power_min_value=args.power_min,
+                                   power_max_value=args.power_max,
+                                   shift_init_value=args.shift_init if args.shift_init else keras.backend.epsilon(),
+                                   power_trainable=args.power_trainable,
+                                   shift_trainable=args.shift_trainable),
+                            BatchNormalization(scale=False, center=False)
+                        ],
+                        add_loss=args.add_nf_loss,
+                        nll_weight_scheduler=get_scheduler(
+                            schedule_type=schedulers_config["nf_reg_csi"]["type"],
+                            schedule_config=schedulers_config["nf_reg_csi"]["config"]
+                        )
+                    ),
+                    reg_weight_scheduler=get_scheduler(
                         schedule_type=schedulers_config["attr_reg_gamma"]["type"],
                         schedule_config=schedulers_config["attr_reg_gamma"]["config"]
                     ),
                     loss_fn=keras.losses.MeanAbsoluteError(),
                     regularization_dimension=args.reg_dim
-                ),
-                "nf_ar": NormalizingFlowAttributeRegularizer(
-                    weight_scheduler=get_scheduler(
-                        schedule_type=schedulers_config["nf_reg_csi"]["type"],
-                        schedule_config=schedulers_config["nf_reg_csi"]["config"]
-                    )
                 )
-            },
-            inference_layer=NormalizingFlowGaussianInference(
-                z_size=model_config["z_size"],
-                bijectors=[
-                    BoxCox(power=args.power_init,
-                           shift=args.shift_init if args.shift_init else keras.backend.epsilon(),
-                           power_trainable=args.power_trainable,
-                           shift_trainable=args.shift_trainable),
-                    BatchNormalization(scale=False, center=False)
-                ],
-                target_dimension=args.reg_dim,
-            )
+            }
         )
         vae.build(input_shape)
         trainer = utilities.get_trainer(model=vae, trainer_config_path=args.trainer_config_path)

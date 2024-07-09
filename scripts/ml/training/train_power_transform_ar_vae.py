@@ -29,6 +29,7 @@ from resolv_ml.utilities.schedulers import get_scheduler
 
 from scripts.ml.training import utilities
 
+
 if __name__ == '__main__':
     arg_parser = utilities.get_arg_parser(description="Train AR-VAE model with sign attribute regularization.")
     arg_parser.add_argument('--attribute', help='Attribute to regularize.', required=True)
@@ -78,7 +79,7 @@ if __name__ == '__main__':
                             BoxCox(power_init_value=args.power_init,
                                    power_min_value=args.power_min,
                                    power_max_value=args.power_max,
-                                   shift_init_value=args.shift_init if args.shift_init else keras.backend.epsilon(),
+                                   shift_init_value=args.shift_init if args.shift_init else 1e-5,
                                    power_trainable=args.power_trainable,
                                    shift_trainable=args.shift_trainable),
                             BatchNormalization(scale=False, center=False)

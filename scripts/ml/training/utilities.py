@@ -183,8 +183,6 @@ def load_pitch_seq_dataset(dataset_config_path: str,
 
     def map_fn(ctx, seq):
         input_seq = tf.transpose(seq["pitch_seq"])
-        # Since there may be 0 valued attributes, add an epsilon to everything in order to avoid problems with the
-        # BoxCox Transform computation
         attributes = tf.expand_dims(ctx[attribute], axis=-1) if attribute \
             else tf.zeros(shape=(batch_size, 1))
         target = input_seq

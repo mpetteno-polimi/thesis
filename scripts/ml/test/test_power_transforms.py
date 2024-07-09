@@ -27,6 +27,9 @@ def test_power_transform(args):
                                                   attribute=attribute,
                                                   batch_size=args.batch_size,
                                                   parse_sequence_feature=False)[:, 0]
+            if args.remove_outlier:
+                outlier_mask = np.where(np.logical_not(np.isclose(dataset, 0)))
+                dataset = dataset[outlier_mask]
             shifts_grid = [0.] if not args.shift_grid_search \
                 else keras.ops.arange(args.shift_min, args.shift_max, args.shift_step)
             for s in shifts_grid:
@@ -93,7 +96,11 @@ def test_original_distributions(args):
                                                          attribute=attribute,
                                                          batch_size=args.batch_size,
                                                          parse_sequence_feature=False)
-            zero_count = np.count_nonzero(np.where(np.isclose(attribute_data, 0)))
+            zero_mask = np.isclose(attribute_data, 0)
+            zero_count = np.count_nonzero(zero_mask)
+            if args.remove_outlier:
+                outlier_mask = np.where(np.logical_not(zero_mask))
+                attribute_data = attribute_data[outlier_mask]
             logging.info(f"Original zero elements: {zero_count}/{len(attribute_data)}")
             plot_original_distributions(attribute_data, output_path, attribute, args.histogram_bins)
         else:
@@ -161,8 +168,7 @@ if __name__ == '__main__':
                         required=False, type=int)
     parser.add_argument('--batch-size', help='Batch size.', required=False, default=64, type=int,
                         choices=[32, 64, 128, 256, 512])
-    parser.add_argument('--power-transform-ids', help="IDs of power transforms to evaluate.", nargs='+',
-                        choices=["box-cox", "yeo-johnson"], default=["box-cox", "yeo-johnson"], required=False)
+    parser.add_argument('--remove-outlier', help='Remove outliers from the datasets.', action="store_true")
     parser.add_argument('--shift-grid-search', help='Do a grid search for the power transform shift parameter.',
                         action="store_true")
     parser.add_argument('--shift-min', help='Start value for the grid search range of the shift parameter for the '

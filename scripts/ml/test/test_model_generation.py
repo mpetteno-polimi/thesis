@@ -12,6 +12,9 @@ from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
 
 import utilities
 
+LATENT_DIM_MIN_VALUE = -4.0
+LATENT_DIM_MAX_VALUE = 4.0
+
 
 def test_model_generation(args):
     for attribute in args.attributes:
@@ -19,21 +22,13 @@ def test_model_generation(args):
         output_dir.mkdir(parents=True, exist_ok=True)
         model = keras.saving.load_model(args.model_path, compile=False)
         model.compile(run_eagerly=True)
+        model.trainable = False
         # sample N = dataset_cardinality instances from model's prior
         latent_codes = model.sample(keras.ops.convert_to_tensor(args.dataset_cardinality)).numpy()
         # control regularized dimension
         if args.control_reg_dim:
-            # load the test dataset and extract all the attribute values to get min and max
-            dataset = utilities.load_dataset(dataset_path=args.test_dataset_path,
-                                             sequence_length=args.sequence_length,
-                                             attribute=attribute,
-                                             batch_size=args.batch_size,
-                                             shift=0.,
-                                             parse_sequence_feature=False)
-            attribute_values = np.array([x for batch in dataset for x in batch])
-            attr_min_val = np.min(attribute_values)
-            attr_max_val = np.max(attribute_values)
-            latent_codes[:, args.regularized_dimension] = keras.ops.linspace(start=attr_min_val, stop=attr_max_val,
+            latent_codes[:, args.regularized_dimension] = keras.ops.linspace(start=LATENT_DIM_MIN_VALUE,
+                                                                             stop=LATENT_DIM_MAX_VALUE,
                                                                              num=args.dataset_cardinality)
         # generate the sequence
         generated_sequences = model.decode(inputs=(latent_codes, keras.ops.convert_to_tensor(args.sequence_length)))
@@ -66,6 +61,29 @@ def test_model_generation(args):
             filename = f"midi/{attribute}_{latent_codes[random_idxes[idx], args.regularized_dimension]:.2f}.midi"
             midi_io.note_sequence_to_midi_file(generated_note_sequence,
                                                Path(args.output_path) / Path(args.model_path).stem / filename)
+
+        # if attribute regularization is carried out by a normalizing flow, compute the minimum and maximum mapped
+        # latent values
+        normalizing_flow_ar_layer = model._regularizers.get("nf_ar", None)
+        if normalizing_flow_ar_layer:
+            normalizing_flow = normalizing_flow_ar_layer._normalizing_flow
+            normalizing_flow._add_loss = False
+            # load the test dataset and extract all the attribute values to get min and max
+            dataset = utilities.load_dataset(dataset_path=args.test_dataset_path,
+                                             sequence_length=args.sequence_length,
+                                             attribute=attribute,
+                                             batch_size=args.batch_size,
+                                             shift=0.,
+                                             parse_sequence_feature=False)
+            attribute_values = np.array([x for batch in dataset for x in batch])
+            attr_min_val = np.min(attribute_values)
+            nf_min_val = normalizing_flow(inputs=keras.ops.convert_to_tensor([[attr_min_val]]), inverse=True).numpy()
+            logging.info(f"Minimum attribute value in dataset is: {attr_min_val}. It is mapped to "
+                         f"{nf_min_val[0][0]:.2f} in the latent regularized dimension.")
+            attr_max_val = np.max(attribute_values)
+            nf_max_val = normalizing_flow(inputs=keras.ops.convert_to_tensor([[attr_max_val]]), inverse=True).numpy()
+            logging.info(f"Maximum attribute value in dataset is: {attr_max_val}. It is mapped to "
+                         f"{nf_max_val[0][0]:.2f} in the latent regularized dimension.")
 
         logging.info(f"Best linear model fit parameters. Slope: {slope:.2f}, Intercept: {intercept:.2f}")
         logging.info(f"Pearson coefficient {pearson_coefficient:.2f}.")

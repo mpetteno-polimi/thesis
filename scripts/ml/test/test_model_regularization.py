@@ -52,7 +52,7 @@ def test_model_regularization(args):
             attributes=input_sequences_attributes[:, 0],
             attribute_name=attribute,
             colorbar=True,
-            norm=colors.PowerNorm(gamma=0.5)
+            norm=colors.PowerNorm(gamma=args.plot_power_norm) if args.plot_power_norm else None
         )
 
         # Regularization for generated sequences
@@ -70,7 +70,7 @@ def test_model_regularization(args):
             attributes=decoded_sequences_attrs,
             attribute_name=attribute,
             colorbar=True,
-            norm=colors.PowerNorm(gamma=0.5)
+            norm=colors.PowerNorm(gamma=args.plot_power_norm) if args.plot_power_norm else None
         )
 
         # Logging
@@ -117,6 +117,8 @@ def regularization_scatter_plot(output_path: str,
 
 if __name__ == '__main__':
     parser = utilities.get_arg_parser("")
+    parser.add_argument('--plot-power-norm', help='Exponent for the color bar\'s power normalization.',
+                        required=False, type=float, default=0.0)
     parser.add_argument('--non-regularized-dimension', help='Index of the latent code non regularized dimension.',
                         required=False, type=int)
     os.environ["KERAS_BACKEND"] = "tensorflow"

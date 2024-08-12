@@ -32,21 +32,22 @@ def test_power_transform(args):
                 dataset = dataset[outlier_mask]
             shifts_grid = [0.] if not args.shift_grid_search \
                 else keras.ops.arange(args.shift_min, args.shift_max, args.shift_step)
+            normality_metrics = []
             for s in shifts_grid:
-                output_path = main_output_path / f"shift_{s:.2f}"
+                output_path = main_output_path / f"shift_{s:.3f}"
                 output_path.mkdir(parents=True, exist_ok=True)
                 numpy_output_path = output_path / "numpy"
                 numpy_output_path.mkdir(parents=True, exist_ok=True)
                 # add epsilon to shift in order to avoid zero input values for BoxCox
-                shifted_inputs = dataset + s + 1e-5
+                s = 1e-5 if not s else s
+                shifted_inputs = dataset + s
                 # Compute best power parameter for BoxCox using log-likelihood maximization
                 _, llm_lmbda = boxcox(shifted_inputs, lmbda=None)
-                logging.info(f"LLM power transform best power value for attribute '{attribute}' shifted by {s:.2f} "
-                             f"is: {llm_lmbda:.5f}'")
+                logging.info(f"LLM power transform best power value for attribute '{attribute}' shifted by {s:.5f} "
+                             f"is: {llm_lmbda:.10f}'")
                 # Create PowerTransform bijector
                 power_transform_bij = BoxCox(
                     power_init_value=llm_lmbda,
-                    shift_init_value=0.,
                     power_trainable=False,
                     shift_trainable=False
                 )
@@ -57,16 +58,18 @@ def test_power_transform(args):
                 pt_out_norm = pt_out_norm.numpy()
                 # Compute Kurtosis
                 kurt = kurtosis(pt_out_norm)
-                logging.info(f"Kurtosis index is {kurt:.5f}.")
+                logging.info(f"Kurtosis index is {kurt:.10f}.")
                 # Compute Negentropy Naive
                 negentropy_naive = negentropy_approx_naive(pt_out_norm)
-                logging.info(f"Negentropy naive index is {negentropy_naive:.5f}.")
+                logging.info(f"Negentropy naive index is {negentropy_naive:.10f}.")
                 # Compute Negentropy exp
                 negentropy_exp = negentropy_approx_fn(pt_out_norm, lambda u: -np.exp(-u ** 2 / 2))
-                logging.info(f"Negentropy exp index is {negentropy_exp:.5f}.")
+                logging.info(f"Negentropy exp index is {negentropy_exp:.10f}.")
                 # Compute Negentropy cosh
                 negentropy_cosh = negentropy_approx_fn(pt_out_norm, lambda u: np.log(np.cosh(u)))
-                logging.info(f"Negentropy cosh index is {negentropy_cosh:.5f}.")
+                logging.info(f"Negentropy cosh index is {negentropy_cosh:.10f}.")
+                # Save metrics to global array
+                normality_metrics.append([kurt, negentropy_naive, negentropy_exp, negentropy_cosh])
                 # Plot histogram of the output distribution
                 logging.info(f"Plotting output distribution histogram...")
                 plot_pt_distributions(
@@ -79,10 +82,27 @@ def test_power_transform(args):
                 )
                 # Save output distributions
                 logging.info(f"Saving output distributions to numpy file...")
-                numpy_pt_out_filename = f'pt_out_norm_{attribute}_power_{llm_lmbda:.2f}_shift_{s:.2f}.npy'
+                numpy_pt_out_filename = f'pt_out_norm_{attribute}_power_{llm_lmbda:.2f}_shift_{s:.3f}.npy'
                 np.save(numpy_output_path / numpy_pt_out_filename, pt_out_norm)
+            normality_metrics = np.array(normality_metrics)
+            min_kurt_idx = np.argmin(np.abs(normality_metrics[:, 0]))
+            min_kurt = normality_metrics[min_kurt_idx, 0]
+            logging.info(f"Minimum Kurtosis index is {min_kurt:.10f} obtained with data shifted by "
+                         f"{shifts_grid[min_kurt_idx]:.2f}.")
+            min_negentropy_naive_idx = np.argmin(np.abs(normality_metrics[:, 1]))
+            min_negentropy_naive = normality_metrics[min_negentropy_naive_idx, 1]
+            logging.info(f"Minimum Negentropy cosh index is {min_negentropy_naive:.10f} obtained with data shifted by "
+                         f"{shifts_grid[min_negentropy_naive_idx]:.2f}.")
+            min_negentropy_exp_idx = np.argmin(np.abs(normality_metrics[:, 2]))
+            min_negentropy_exp = normality_metrics[min_negentropy_exp_idx, 2]
+            logging.info(f"Minimum Negentropy cosh index is {min_negentropy_exp:.10f} obtained with data shifted by "
+                         f"{shifts_grid[min_negentropy_exp_idx]:.2f}.")
+            min_negentropy_cosh_idx = np.argmin(np.abs(normality_metrics[:, 3]))
+            min_negentropy_cosh = normality_metrics[min_negentropy_cosh_idx, 3]
+            logging.info(f"Minimum Negentropy cosh index is {min_negentropy_cosh:.10f} obtained with data shifted by "
+                         f"{shifts_grid[min_negentropy_cosh_idx]:.2f}.")
         else:
-            logging.info(f"Power transform distribution for attribute '{attribute}' already exists."
+            logging.info(f"Power transform distribution for attribute '{attribute}' already exists. "
                          f"Remove the folder {main_output_path} to override it.")
 
 
@@ -104,7 +124,7 @@ def test_original_distributions(args):
             logging.info(f"Original zero elements: {zero_count}/{len(attribute_data)}")
             plot_original_distributions(attribute_data, output_path, attribute, args.histogram_bins)
         else:
-            logging.info(f"Original distribution for attribute '{attribute}' already exists."
+            logging.info(f"Original distribution for attribute '{attribute}' already exists. "
                          f"Remove the folder {output_path} to override it.")
 
 
@@ -144,11 +164,11 @@ def plot_pt_distributions(data,
     histograms_output_path.mkdir(parents=True, exist_ok=True)
     attr_title = attribute.replace("_", " ").capitalize()
     for bins in histogram_bins:
-        filename = (f'{str(histograms_output_path)}/histogram_{attribute}_power_{power:.2f}_shift_{shift:.2f}'
+        filename = (f'{str(histograms_output_path)}/histogram_{attribute}_power_{power:.2f}_shift_{shift:.3f}'
                     f'_bins_{bins}.png')
         plt.hist(data, bins=bins, color='blue', alpha=0.7)
         plt.suptitle(f'BoxCox - {attr_title}')
-        plt.title(r'$\lambda$ = ' + f'{power:.2f} - {shift:.2f} - Bins = {bins}')
+        plt.title(r'$\lambda$ = ' + f'{power:.2f} - {shift:.3f} - Bins = {bins}')
         plt.grid(linestyle=':')
         plt.savefig(filename, format='png', dpi=300)
         plt.close()
@@ -157,7 +177,7 @@ def plot_pt_distributions(data,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Evaluate power transforms for specified attributes contained in the given SequenceExample "
-                    "dataset. Supported transformations are BoxCox and YeoJohnson."
+                    "dataset."
     )
     parser.add_argument('--dataset-path', required=True, help='Path to the dataset containing SequenceExample with the '
                                                               'attributes to evaluate saved in the context.')

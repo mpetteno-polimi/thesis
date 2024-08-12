@@ -30,6 +30,14 @@ def test_model_generation(args):
             latent_codes[:, args.regularized_dimension] = keras.ops.linspace(start=LATENT_DIM_MIN_VALUE,
                                                                              stop=LATENT_DIM_MAX_VALUE,
                                                                              num=args.dataset_cardinality)
+        # Get normalizing flow if model uses PT regularization
+        normalizing_flow_ar_layer = model._regularizers.get("nf_ar", None)
+        if normalizing_flow_ar_layer:
+            normalizing_flow = normalizing_flow_ar_layer._normalizing_flow
+            normalizing_flow._add_loss = False
+        else:
+            normalizing_flow = None
+
         # generate the sequence
         generated_sequences = model.decode(inputs=(latent_codes, keras.ops.convert_to_tensor(args.sequence_length)))
         generated_sequences_attrs, hold_note_start_seq_count = utilities.compute_sequences_attributes(
@@ -44,6 +52,12 @@ def test_model_generation(args):
         plt.close()
         # compute Pearson coefficient and plot graph with the best linear fitting model
         reg_dim_data = latent_codes[:, args.regularized_dimension]
+        if normalizing_flow:
+            generated_sequences_attrs = normalizing_flow(
+                inputs=keras.ops.convert_to_tensor(keras.ops.expand_dims(generated_sequences_attrs, axis=-1)),
+                inverse=True
+            )
+            generated_sequences_attrs = keras.ops.squeeze(generated_sequences_attrs)
         correlation_matrix = np.corrcoef(reg_dim_data, generated_sequences_attrs)
         pearson_coefficient = correlation_matrix[0, 1]
         slope, intercept = plot_reg_dim_vs_attribute(output_path=str(output_dir / 'reg_dim_vs_attribute.png'),
@@ -64,10 +78,7 @@ def test_model_generation(args):
 
         # if attribute regularization is carried out by a normalizing flow, compute the minimum and maximum mapped
         # latent values
-        normalizing_flow_ar_layer = model._regularizers.get("nf_ar", None)
-        if normalizing_flow_ar_layer:
-            normalizing_flow = normalizing_flow_ar_layer._normalizing_flow
-            normalizing_flow._add_loss = False
+        if normalizing_flow:
             # load the test dataset and extract all the attribute values to get min and max
             dataset = utilities.load_dataset(dataset_path=args.test_dataset_path,
                                              sequence_length=args.sequence_length,

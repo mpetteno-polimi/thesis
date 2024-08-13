@@ -88,19 +88,19 @@ def test_power_transform(args):
             min_kurt_idx = np.argmin(np.abs(normality_metrics[:, 0]))
             min_kurt = normality_metrics[min_kurt_idx, 0]
             logging.info(f"Minimum Kurtosis index is {min_kurt:.10f} obtained with data shifted by "
-                         f"{shifts_grid[min_kurt_idx]:.2f}.")
+                         f"{shifts_grid[min_kurt_idx]:.5f}.")
             min_negentropy_naive_idx = np.argmin(np.abs(normality_metrics[:, 1]))
             min_negentropy_naive = normality_metrics[min_negentropy_naive_idx, 1]
-            logging.info(f"Minimum Negentropy cosh index is {min_negentropy_naive:.10f} obtained with data shifted by "
-                         f"{shifts_grid[min_negentropy_naive_idx]:.2f}.")
+            logging.info(f"Minimum Negentropy naive index is {min_negentropy_naive:.10f} obtained with data shifted by "
+                         f"{shifts_grid[min_negentropy_naive_idx]:.5f}.")
             min_negentropy_exp_idx = np.argmin(np.abs(normality_metrics[:, 2]))
             min_negentropy_exp = normality_metrics[min_negentropy_exp_idx, 2]
-            logging.info(f"Minimum Negentropy cosh index is {min_negentropy_exp:.10f} obtained with data shifted by "
-                         f"{shifts_grid[min_negentropy_exp_idx]:.2f}.")
+            logging.info(f"Minimum Negentropy exp index is {min_negentropy_exp:.10f} obtained with data shifted by "
+                         f"{shifts_grid[min_negentropy_exp_idx]:.5f}.")
             min_negentropy_cosh_idx = np.argmin(np.abs(normality_metrics[:, 3]))
             min_negentropy_cosh = normality_metrics[min_negentropy_cosh_idx, 3]
             logging.info(f"Minimum Negentropy cosh index is {min_negentropy_cosh:.10f} obtained with data shifted by "
-                         f"{shifts_grid[min_negentropy_cosh_idx]:.2f}.")
+                         f"{shifts_grid[min_negentropy_cosh_idx]:.5f}.")
         else:
             logging.info(f"Power transform distribution for attribute '{attribute}' already exists. "
                          f"Remove the folder {main_output_path} to override it.")

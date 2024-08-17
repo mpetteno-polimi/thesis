@@ -21,12 +21,9 @@ if __name__ == '__main__':
     y_kld_scheduler = [kld_scheduler(step) for step in x]
 
     # Attribute Regularizer - Gamma
-    attr_reg_schedule_type = "exponential"
+    attr_reg_schedule_type = "constant"
     attr_reg_schedule_config = {
-        "rate": 0.9999,
-        "min_value": 0.0,
-        "max_value": 1.0,
-        "decay": False
+        "value": 1.0
     }
     attr_reg_scheduler = get_scheduler(attr_reg_schedule_type, attr_reg_schedule_config)
     y_attr_reg_scheduler = [attr_reg_scheduler(step) for step in x]
@@ -54,20 +51,18 @@ if __name__ == '__main__':
     # Plot
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
-    plt.plot(x, y_attr_reg_scheduler, label="$\\gamma$-Attr", color='red')
-    plt.plot(x, y_sampling_prob_scheduler, label="P-Sampling", color='green')
+    plt.plot(x, y_attr_reg_scheduler, label="$\\gamma$", color='red')
+    plt.plot(x, y_sampling_prob_scheduler, label="$p_{sample}$", color='green')
     plt.legend()
-    plt.xlabel('x')
-    plt.ylabel('y')
+    plt.xlabel('iteration')
     plt.subplot(1, 2, 2)
-    plt.plot(x, y_kld_scheduler, label="$\\beta$-KLD", color='blue')
-    plt.axhline(max(y_kld_scheduler), color='purple', linestyle='--', linewidth=0.8,
-                label=f'max(kld)={max(y_kld_scheduler):.4f}')
-    plt.plot(x, y_lr_scheduler, label="LR", color='purple')
-    plt.axhline(min(y_lr_scheduler), color='blue', linestyle='--', linewidth=0.8,
-                label=f'min(lr)={min(y_lr_scheduler):.8f}')
+    plt.plot(x, y_kld_scheduler, label="$\\beta$", color='blue')
+    # plt.axhline(max(y_kld_scheduler), color='purple', linestyle='--', linewidth=0.8,
+    #             label=f'max(kld)={max(y_kld_scheduler):.4f}')
+    plt.plot(x, y_lr_scheduler, label="lr", color='purple')
+    # plt.axhline(min(y_lr_scheduler), color='blue', linestyle='--', linewidth=0.8,
+    #             label=f'min(lr)={min(y_lr_scheduler):.8f}')
     plt.legend()
-    plt.xlabel('x')
-    plt.ylabel('y')
+    plt.xlabel('iteration')
     plt.tight_layout()
     plt.show()

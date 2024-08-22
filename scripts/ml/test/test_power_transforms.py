@@ -63,7 +63,7 @@ def test_power_transform(args):
                 negentropy_naive = negentropy_approx_naive(pt_out_norm)
                 logging.info(f"Negentropy naive index is {negentropy_naive:.10f}.")
                 # Compute Negentropy exp
-                negentropy_exp = negentropy_approx_fn(pt_out_norm, lambda u: -np.exp(-u ** 2 / 2))
+                negentropy_exp = negentropy_approx_fn(pt_out_norm, lambda u: -np.exp(-(u ** 2 / 2)))
                 logging.info(f"Negentropy exp index is {negentropy_exp:.10f}.")
                 # Compute Negentropy cosh
                 negentropy_cosh = negentropy_approx_fn(pt_out_norm, lambda u: np.log(np.cosh(u)))

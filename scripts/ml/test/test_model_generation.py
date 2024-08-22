@@ -12,9 +12,6 @@ from resolv_pipelines.data.representation.mir import PitchSequenceRepresentation
 
 import utilities
 
-LATENT_DIM_MIN_VALUE = -4.0
-LATENT_DIM_MAX_VALUE = 4.0
-
 
 def test_model_generation(args):
     for attribute in args.attributes:
@@ -27,8 +24,8 @@ def test_model_generation(args):
         latent_codes = model.sample(keras.ops.convert_to_tensor(args.dataset_cardinality)).numpy()
         # control regularized dimension
         if args.control_reg_dim:
-            latent_codes[:, args.regularized_dimension] = keras.ops.linspace(start=LATENT_DIM_MIN_VALUE,
-                                                                             stop=LATENT_DIM_MAX_VALUE,
+            latent_codes[:, args.regularized_dimension] = keras.ops.linspace(start=args.latent_min_val,
+                                                                             stop=args.latent_max_val,
                                                                              num=args.dataset_cardinality)
         # Get normalizing flow if model uses PT regularization
         normalizing_flow_ar_layer = model._regularizers.get("nf_ar", None)
@@ -45,8 +42,8 @@ def test_model_generation(args):
         # plot generated sequences attributes histogram
         filename = f'{str(output_dir)}/histogram_generated_{attribute}_{args.histogram_bins}_bins.png'
         logging.info(f"Plotting generated histogram with {args.histogram_bins} bins for attribute {attribute}...")
-        plt.hist(generated_sequences_attrs, bins=args.histogram_bins, color='blue', alpha=0.7)
-        plt.title(f'{attribute.replace("_", " ").capitalize()} - {args.histogram_bins} bins')
+        plt.hist(generated_sequences_attrs, bins=args.histogram_bins, density=True, stacked=True, color='blue',
+                 alpha=0.7)
         plt.grid(linestyle=':')
         plt.savefig(filename, format='png', dpi=300)
         plt.close()
@@ -61,11 +58,9 @@ def test_model_generation(args):
         correlation_matrix = np.corrcoef(reg_dim_data, generated_sequences_attrs)
         pearson_coefficient = correlation_matrix[0, 1]
         slope, intercept = plot_reg_dim_vs_attribute(output_path=str(output_dir / 'reg_dim_vs_attribute.png'),
-                                                     title="",
                                                      reg_dim_data=reg_dim_data,
                                                      reg_dim_idx=args.regularized_dimension,
-                                                     attribute_data=generated_sequences_attrs,
-                                                     attribute_name=attribute)
+                                                     attribute_data=generated_sequences_attrs)
         # convert generated sequences to MIDI and save to disk
         representation = PitchSequenceRepresentation(args.sequence_length)
         seq_to_save_count = min(args.dataset_cardinality, args.num_midi_to_save)
@@ -103,17 +98,13 @@ def test_model_generation(args):
 
 
 def plot_reg_dim_vs_attribute(output_path: str,
-                              title: str,
                               reg_dim_data,
                               reg_dim_idx,
-                              attribute_data,
-                              attribute_name: str):
+                              attribute_data):
     slope, intercept = np.polyfit(reg_dim_data, attribute_data, 1)
     plt.scatter(reg_dim_data, attribute_data, color='blue', s=5)
     plt.plot(reg_dim_data, slope * reg_dim_data + intercept, color='red')
-    plt.ylabel(f'{attribute_name}')
     plt.xlabel(f'$z_{reg_dim_idx}$')
-    plt.title(title)
     plt.savefig(output_path, format='png', dpi=300)
     plt.close()
     return slope, intercept
@@ -122,8 +113,12 @@ def plot_reg_dim_vs_attribute(output_path: str,
 if __name__ == '__main__':
     parser = utilities.get_arg_parser("")
     parser.add_argument('--control-reg-dim', action="store_true",
-                        help='Control the regularized dimension of the sampled latent codes using the min and max '
-                             'values for the given attribute in the given test dataset.')
+                        help='Control the regularized latent dimension of the sampled latent codes using the min and '
+                             'max values provided in `--latent-min-val` and `--latent-max-val.`')
+    parser.add_argument('--latent-min-val', help='Minimum value for manipulation of the regularized latent dimension.',
+                        default=-4.0, required=False, type=float)
+    parser.add_argument('--latent-max-val', help='Maximum value for manipulation of the regularized latent dimension.',
+                        default=4.0, required=False, type=float)
     parser.add_argument('--num-midi-to-save', help='Number of generated sequences to save as MIDI file. '
                                                    'The N sequences will be chosen randomly.', required=True, type=int)
     parser.add_argument('--histogram-bins', help='Number of bins for the histogram.', default=120, required=False,

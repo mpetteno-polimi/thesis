@@ -44,13 +44,12 @@ def test_model_regularization(args):
         enc_non_reg_corr_mat = np.corrcoef(non_reg_dim_data, input_sequences_attributes[:, 0])
         regularization_scatter_plot(
             output_path=str(output_dir/"encoded_sequences_reg_latent_space.png"),
-            title="Latent distribution of encoded sequences",
+            title="",
             reg_dim_data=reg_dim_data,
             reg_dim_idx=args.regularized_dimension,
             non_reg_dim_data=non_reg_dim_data,
             non_reg_dim_idx=non_regularized_dimension,
             attributes=input_sequences_attributes[:, 0],
-            attribute_name=attribute,
             colorbar=True,
             norm=colors.PowerNorm(gamma=args.plot_power_norm) if args.plot_power_norm else None
         )
@@ -62,13 +61,12 @@ def test_model_regularization(args):
         gen_non_reg_corr_mat = np.corrcoef(non_reg_dim_data, decoded_sequences_attrs)
         regularization_scatter_plot(
             output_path=str(output_dir/"decoded_sequences_reg_latent_space.png"),
-            title="Latent distribution of generated sequences",
+            title="",
             reg_dim_data=reg_dim_data,
             reg_dim_idx=args.regularized_dimension,
             non_reg_dim_data=non_reg_dim_data,
             non_reg_dim_idx=non_regularized_dimension,
             attributes=decoded_sequences_attrs,
-            attribute_name=attribute,
             colorbar=True,
             norm=colors.PowerNorm(gamma=args.plot_power_norm) if args.plot_power_norm else None
         )
@@ -93,7 +91,6 @@ def regularization_scatter_plot(output_path: str,
                                 non_reg_dim_data,
                                 non_reg_dim_idx,
                                 attributes,
-                                attribute_name: str,
                                 colorbar: bool = True,
                                 vmin: float = None,
                                 vmax: float = None,
@@ -107,7 +104,7 @@ def regularization_scatter_plot(output_path: str,
                 cmap='viridis',
                 alpha=0.8)
     if colorbar:
-        plt.colorbar(label=attribute_name)
+        plt.colorbar()
     plt.xlabel(f'$z_{{{non_reg_dim_idx}}}$')
     plt.ylabel(f'$z_{{{reg_dim_idx}}}$')
     plt.title(title)

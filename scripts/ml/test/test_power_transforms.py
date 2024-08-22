@@ -11,7 +11,7 @@ import tensorflow as tf
 from keras import ops as k_ops
 from resolv_ml.utilities.bijectors.power_transform import BoxCox
 from resolv_mir.note_sequence.attributes import ATTRIBUTE_FN_MAP
-from scipy.stats import boxcox, kurtosis
+from scipy.stats import norm, boxcox, kurtosis
 
 import utilities
 
@@ -147,8 +147,7 @@ def plot_original_distributions(data,
     for bins in histogram_bins:
         filename = f'{str(histograms_output_path)}/histogram_original_{attribute}_{bins}_bins.png'
         logging.info(f"Plotting original histogram with {bins} bins for attribute {attribute}...")
-        plt.hist(data, bins=bins, color='blue', alpha=0.7)
-        plt.title(f'{attribute.replace("_", " ").capitalize()} - {bins} bins')
+        plt.hist(data, bins=bins, density=True, stacked=True, color='blue', alpha=0.7)
         plt.grid(linestyle=':')
         plt.savefig(filename, format='png', dpi=300)
         plt.close()
@@ -162,13 +161,13 @@ def plot_pt_distributions(data,
                           histogram_bins: List[int]):
     histograms_output_path = output_path / "histograms"
     histograms_output_path.mkdir(parents=True, exist_ok=True)
-    attr_title = attribute.replace("_", " ").capitalize()
-    for bins in histogram_bins:
+    mu, sigma = norm.fit(data)
+    for n_bins in histogram_bins:
         filename = (f'{str(histograms_output_path)}/histogram_{attribute}_power_{power:.2f}_shift_{shift:.3f}'
-                    f'_bins_{bins}.png')
-        plt.hist(data, bins=bins, color='blue', alpha=0.7)
-        plt.suptitle(f'BoxCox - {attr_title}')
-        plt.title(r'$\lambda$ = ' + f'{power:.2f} - {shift:.3f} - Bins = {bins}')
+                    f'_bins_{n_bins}.png')
+        _, bins, _ = plt.hist(data, bins=n_bins, density=True, stacked=True, color='blue', alpha=0.7)
+        gaussian_fit = norm.pdf(bins, mu, sigma)
+        plt.plot(bins, gaussian_fit, 'r-', linewidth=2)
         plt.grid(linestyle=':')
         plt.savefig(filename, format='png', dpi=300)
         plt.close()

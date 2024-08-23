@@ -122,7 +122,9 @@ def test_original_distributions(args):
                 outlier_mask = np.where(np.logical_not(zero_mask))
                 attribute_data = attribute_data[outlier_mask]
             logging.info(f"Original zero elements: {zero_count}/{len(attribute_data)}")
-            plot_original_distributions(attribute_data, output_path, attribute, args.histogram_bins)
+            norm_attr_data = (attribute_data - k_ops.mean(attribute_data)) / k_ops.std(attribute_data)
+            plot_original_distributions(norm_attr_data.numpy(), output_path, attribute, args.histogram_bins,
+                                        args.overlap_gauss_orig)
         else:
             logging.info(f"Original distribution for attribute '{attribute}' already exists. "
                          f"Remove the folder {output_path} to override it.")
@@ -141,14 +143,21 @@ def negentropy_approx_fn(x, fn: Callable):
 def plot_original_distributions(data,
                                 output_path: Path,
                                 attribute: str,
-                                histogram_bins: List[int]):
+                                histogram_bins: List[int],
+                                overlap_gaussian: bool = False):
     histograms_output_path = output_path / "histograms"
     histograms_output_path.mkdir(parents=True, exist_ok=True)
-    for bins in histogram_bins:
-        filename = f'{str(histograms_output_path)}/histogram_original_{attribute}_{bins}_bins.png'
-        logging.info(f"Plotting original histogram with {bins} bins for attribute {attribute}...")
-        plt.hist(data, bins=bins, density=True, stacked=True, color='blue', alpha=0.7)
-        plt.grid(linestyle=':')
+    x = np.linspace(-4, 4, data.shape[0])
+    standard_gauss = norm.pdf(x, 0, 1)
+    for n_bins in histogram_bins:
+        filename = f'{str(histograms_output_path)}/histogram_original_{attribute}_{n_bins}_bins.png'
+        logging.info(f"Plotting original histogram with {n_bins} bins for attribute {attribute}...")
+        counts, bins = np.histogram(data, bins=n_bins)
+        weights = (counts / np.max(counts)) * 0.45
+        plt.hist(bins[:-1], bins=n_bins, weights=weights, color='#4c92c3')
+        if overlap_gaussian:
+            plt.plot(x, standard_gauss, 'r-', linewidth=2)
+        plt.grid(axis='y', linestyle=':')
         plt.savefig(filename, format='png', dpi=300)
         plt.close()
 
@@ -161,14 +170,16 @@ def plot_pt_distributions(data,
                           histogram_bins: List[int]):
     histograms_output_path = output_path / "histograms"
     histograms_output_path.mkdir(parents=True, exist_ok=True)
-    mu, sigma = norm.fit(data)
+    x = np.linspace(-4, 4, data.shape[0])
+    standard_gauss = norm.pdf(x, 0, 1)
     for n_bins in histogram_bins:
         filename = (f'{str(histograms_output_path)}/histogram_{attribute}_power_{power:.2f}_shift_{shift:.3f}'
                     f'_bins_{n_bins}.png')
-        _, bins, _ = plt.hist(data, bins=n_bins, density=True, stacked=True, color='blue', alpha=0.7)
-        gaussian_fit = norm.pdf(bins, mu, sigma)
-        plt.plot(bins, gaussian_fit, 'r-', linewidth=2)
-        plt.grid(linestyle=':')
+        counts, bins = np.histogram(data, bins=n_bins)
+        weights = (counts / np.max(counts)) * 0.45
+        plt.hist(bins[:-1], bins=n_bins, weights=weights, color='#4c92c3')
+        plt.plot(x, standard_gauss, 'r-', linewidth=2)
+        plt.grid(axis='y', linestyle=':')
         plt.savefig(filename, format='png', dpi=300)
         plt.close()
 
@@ -187,6 +198,7 @@ if __name__ == '__main__':
                         required=False, type=int)
     parser.add_argument('--batch-size', help='Batch size.', required=False, default=64, type=int,
                         choices=[32, 64, 128, 256, 512])
+    parser.add_argument('--overlap-gauss-orig', help='Length of the sequences in the dataset.', action="store_true")
     parser.add_argument('--remove-outlier', help='Remove outliers from the datasets.', action="store_true")
     parser.add_argument('--shift-grid-search', help='Do a grid search for the power transform shift parameter.',
                         action="store_true")

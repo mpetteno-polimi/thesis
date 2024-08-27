@@ -52,59 +52,61 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(args.logging_level)
 
-    strategy = utilities.get_distributed_strategy(args.gpus)
-    with strategy.scope():
-        train_data, val_data, input_shape = utilities.load_datasets(
-            train_dataset_config_path=args.train_dataset_config_path,
-            val_dataset_config_path=args.val_dataset_config_path,
-            trainer_config_path=args.trainer_config_path,
-            attribute=args.attribute
-        )
+    _ = utilities.set_visible_devices(args.gpus, args.gpu_memory_growth)
 
-        with open(args.model_config_path) as file:
-            model_config = json.load(file)
-            schedulers_config = model_config["schedulers"]
+    # strategy = utilities.get_distributed_strategy(args.gpus)
+    # with strategy.scope():
+    train_data, val_data, input_shape = utilities.load_datasets(
+        train_dataset_config_path=args.train_dataset_config_path,
+        val_dataset_config_path=args.val_dataset_config_path,
+        trainer_config_path=args.trainer_config_path,
+        attribute=args.attribute
+    )
 
-        with open(args.trainer_config_path) as file:
-            fit_config = json.load(file)["fit"]
+    with open(args.model_config_path) as file:
+        model_config = json.load(file)
+        schedulers_config = model_config["schedulers"]
 
-        vae = utilities.get_model(
-            model_config_path=args.model_config_path,
-            trainer_config_path=args.trainer_config_path,
-            hierarchical_decoder=args.hierarchical_decoder,
-            attribute_regularizers={
-                "nf_ar": NormalizingFlowAttributeRegularizer(
-                    normalizing_flow=NormalizingFlow(
-                        bijectors=[
-                            BoxCox(power_init_value=args.power_init,
-                                   power_min_value=args.power_min,
-                                   power_max_value=args.power_max,
-                                   shift_init_value=args.shift_init if args.shift_init else 1e-5,
-                                   power_trainable=args.power_trainable,
-                                   shift_trainable=args.shift_trainable),
-                            BatchNormalization(scale=False, center=False)
-                        ],
-                        add_loss=args.add_nf_loss,
-                        nll_weight_scheduler=get_scheduler(
-                            schedule_type=schedulers_config["nf_reg_csi"]["type"],
-                            schedule_config=schedulers_config["nf_reg_csi"]["config"]
-                        )
-                    ),
-                    reg_weight_scheduler=get_scheduler(
-                        schedule_type=schedulers_config["attr_reg_gamma"]["type"],
-                        schedule_config=schedulers_config["attr_reg_gamma"]["config"]
-                    ),
-                    loss_fn=keras.losses.MeanAbsoluteError(),
-                    regularization_dimension=args.reg_dim
-                )
-            }
-        )
-        vae.build(input_shape)
-        trainer = utilities.get_trainer(model=vae, trainer_config_path=args.trainer_config_path)
-        history = trainer.train(
-            train_data=train_data[0],
-            train_data_cardinality=train_data[1],
-            validation_data=val_data[0],
-            validation_data_cardinality=val_data[1],
-            custom_callbacks=[LearningRateLoggerCallback()]
-        )
+    with open(args.trainer_config_path) as file:
+        fit_config = json.load(file)["fit"]
+
+    vae = utilities.get_model(
+        model_config_path=args.model_config_path,
+        trainer_config_path=args.trainer_config_path,
+        hierarchical_decoder=args.hierarchical_decoder,
+        attribute_regularizers={
+            "nf_ar": NormalizingFlowAttributeRegularizer(
+                normalizing_flow=NormalizingFlow(
+                    bijectors=[
+                        BoxCox(power_init_value=args.power_init,
+                               power_min_value=args.power_min,
+                               power_max_value=args.power_max,
+                               shift_init_value=args.shift_init if args.shift_init else 1e-5,
+                               power_trainable=args.power_trainable,
+                               shift_trainable=args.shift_trainable),
+                        BatchNormalization(scale=False, center=False)
+                    ],
+                    add_loss=args.add_nf_loss,
+                    nll_weight_scheduler=get_scheduler(
+                        schedule_type=schedulers_config["nf_reg_csi"]["type"],
+                        schedule_config=schedulers_config["nf_reg_csi"]["config"]
+                    )
+                ),
+                reg_weight_scheduler=get_scheduler(
+                    schedule_type=schedulers_config["attr_reg_gamma"]["type"],
+                    schedule_config=schedulers_config["attr_reg_gamma"]["config"]
+                ),
+                loss_fn=keras.losses.MeanAbsoluteError(),
+                regularization_dimension=args.reg_dim
+            )
+        }
+    )
+    vae.build(input_shape)
+    trainer = utilities.get_trainer(model=vae, trainer_config_path=args.trainer_config_path)
+    history = trainer.train(
+        train_data=train_data[0],
+        train_data_cardinality=train_data[1],
+        validation_data=val_data[0],
+        validation_data_cardinality=val_data[1],
+        custom_callbacks=[LearningRateLoggerCallback()]
+    )

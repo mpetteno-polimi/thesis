@@ -28,14 +28,11 @@ def check_tf_gpu_availability():
     return gpu_list
 
 
-def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strategy:
+def set_visible_devices(gpu_ids: List[int] = None, memory_growth: bool = False):
     gpu_list = check_tf_gpu_availability()
 
     if not gpu_list:
         raise SystemExit("GPU not available.")
-
-    if gpu_ids and any(gpu_id >= len(gpu_list) for gpu_id in gpu_ids):
-        raise ValueError(f"GPU ids {gpu_ids} not valid. There are only {len(gpu_ids)} GPUs available.")
 
     if gpu_ids:
         selected_gpus = [gpu_list[gpu] for gpu in gpu_ids]
@@ -44,10 +41,16 @@ def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strateg
         logging.info(f"No GPU ids provided. Using default GPU device {gpu_list[0]}.")
         selected_gpus = [gpu_list[0]]
 
-    for gpu in selected_gpus:
-        tf.config.set_visible_devices(selected_gpus, 'GPU')
-        tf.config.experimental.set_memory_growth(gpu, True)
+    tf.config.set_visible_devices(selected_gpus, 'GPU')
 
+    for gpu in selected_gpus:
+        tf.config.experimental.set_memory_growth(gpu, memory_growth)
+
+    return selected_gpus
+
+
+def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strategy:
+    selected_gpus = set_visible_devices(gpu_ids)
     selected_gpus_name = [selected_gpu.name.replace("/physical_device:", "") for selected_gpu in selected_gpus]
     if len(selected_gpus) > 1:
         logging.info(f"Using MirroredStrategy on selected GPUs: {selected_gpus_name}")
@@ -249,6 +252,7 @@ def get_arg_parser(description: str) -> argparse.ArgumentParser:
                         required=True)
     parser.add_argument('--gpus', nargs="+", help='ID of GPUs to use for training.', required=False,
                         default=[], type=int)
+    parser.add_argument('--gpu-memory-growth', help='Set memory growth for the selected GPUs.', action="store_true")
     parser.add_argument('--logging-level', help='Set the logging level.', default="INFO", required=False,
                         choices=["CRITICAL", "ERROR", "WARNING", "INFO"])
     return parser

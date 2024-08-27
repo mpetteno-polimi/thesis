@@ -22,24 +22,26 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(args.logging_level)
 
-    strategy = utilities.get_distributed_strategy(args.gpus)
-    with strategy.scope():
-        train_data, val_data, input_shape = utilities.load_datasets(
-            train_dataset_config_path=args.train_dataset_config_path,
-            val_dataset_config_path=args.val_dataset_config_path,
-            trainer_config_path=args.trainer_config_path
-        )
-        vae = utilities.get_model(
-            model_config_path=args.model_config_path,
-            trainer_config_path=args.trainer_config_path,
-            hierarchical_decoder=args.hierarchical_decoder
-        )
-        vae.build(input_shape)
-        trainer = utilities.get_trainer(model=vae, trainer_config_path=args.trainer_config_path)
-        history = trainer.train(
-            train_data=train_data[0],
-            train_data_cardinality=train_data[1],
-            validation_data=val_data[0],
-            validation_data_cardinality=val_data[1],
-            custom_callbacks=[LearningRateLoggerCallback()]
-        )
+    _ = utilities.set_visible_devices(args.gpus, args.gpu_memory_growth)
+
+    # strategy = utilities.get_distributed_strategy(args.gpus)
+    # with strategy.scope():
+    train_data, val_data, input_shape = utilities.load_datasets(
+        train_dataset_config_path=args.train_dataset_config_path,
+        val_dataset_config_path=args.val_dataset_config_path,
+        trainer_config_path=args.trainer_config_path
+    )
+    vae = utilities.get_model(
+        model_config_path=args.model_config_path,
+        trainer_config_path=args.trainer_config_path,
+        hierarchical_decoder=args.hierarchical_decoder
+    )
+    vae.build(input_shape)
+    trainer = utilities.get_trainer(model=vae, trainer_config_path=args.trainer_config_path)
+    history = trainer.train(
+        train_data=train_data[0],
+        train_data_cardinality=train_data[1],
+        validation_data=val_data[0],
+        validation_data_cardinality=val_data[1],
+        custom_callbacks=[LearningRateLoggerCallback()]
+    )

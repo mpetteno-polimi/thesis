@@ -50,8 +50,8 @@ def set_visible_devices(gpu_ids: List[int] = None, memory_growth: bool = False):
     return selected_gpus
 
 
-def get_distributed_strategy(gpu_ids: List[int] = None) -> tf.distribute.Strategy:
-    selected_gpus = set_visible_devices(gpu_ids)
+def get_distributed_strategy(gpu_ids: List[int] = None, memory_growth: bool = False) -> tf.distribute.Strategy:
+    selected_gpus = set_visible_devices(gpu_ids, memory_growth)
     selected_gpus_name = [selected_gpu.name.replace("/physical_device:", "") for selected_gpu in selected_gpus]
     if len(selected_gpus) > 1:
         logging.info(f"Using MirroredStrategy on selected GPUs: {selected_gpus_name}")

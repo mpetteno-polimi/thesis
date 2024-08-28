@@ -44,6 +44,7 @@ def set_visible_devices(gpu_ids: List[int] = None, memory_growth: bool = False):
     tf.config.set_visible_devices(selected_gpus, 'GPU')
 
     for gpu in selected_gpus:
+        logging.info(f"Setting GPU device {gpu} memory growth to {memory_growth}.")
         tf.config.experimental.set_memory_growth(gpu, memory_growth)
 
     return selected_gpus

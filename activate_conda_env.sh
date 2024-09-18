@@ -1,4 +1,6 @@
 #!/bin/bash
+# Script to activate the Conda environment in ./venv. The environment variable $INTERACTIVE controls if the env will be
+# activated in an interactive shell or not. You can pass '--interactive' as a flag to enable interactive mode.
 
 INTERACTIVE=true
 

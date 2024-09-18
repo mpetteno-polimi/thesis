@@ -57,11 +57,6 @@ if __name__ == '__main__':
     plt.xlabel('iteration')
     plt.subplot(1, 2, 2)
     plt.plot(x, y_kld_scheduler, label="$\\beta$", color='blue')
-    # plt.axhline(max(y_kld_scheduler), color='purple', linestyle='--', linewidth=0.8,
-    #             label=f'max(kld)={max(y_kld_scheduler):.4f}')
-    plt.plot(x, y_lr_scheduler, label="lr", color='purple')
-    # plt.axhline(min(y_lr_scheduler), color='blue', linestyle='--', linewidth=0.8,
-    #             label=f'min(lr)={min(y_lr_scheduler):.8f}')
     plt.legend()
     plt.xlabel('iteration')
     plt.tight_layout()

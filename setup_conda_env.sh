@@ -1,4 +1,6 @@
 #!/bin/bash
+# Setup the local Conda environment in ./venv from the `environment.yml` and `environment.local.yml`: the latter is
+# used to install tensorflow-metal and python-snappy packages. Note that this will work only on a macOS system.
 
 CONDA_PREFIX=./venv
 
